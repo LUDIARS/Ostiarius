@@ -21,12 +21,16 @@ import { loadConfig } from './config.ts';
 import { openDb, countCredentials } from './db.ts';
 import { loadOrCreateKeyPair } from './attestation-key.ts';
 import { startCernereSync } from './cernere-sync.ts';
+import { registerGatewayKey } from './aedilis-register.ts';
 import { ChallengeStore } from './challenge-store.ts';
 import { makeCheckinRouter } from './routes/checkin.ts';
 
 const config = loadConfig();
 const db = openDb(config.dbPath);
-const keyPair = loadOrCreateKeyPair(config.keyPath);
+const keyPair = loadOrCreateKeyPair({
+  privateKeyPem: config.privateKeyPem,
+  keyPath: config.keyPath,
+});
 const challenges = new ChallengeStore(config.challengeTtlMs);
 
 startCernereSync({
@@ -74,13 +78,35 @@ app.route(
 
 app.notFound((c) => c.json({ error: 'not_found' }, 404));
 
+// 公開鍵の Aedilis 自己登録 (#167)。 env が両方そろっていれば起動後に登録、
+// 無ければ手動 provision (起動ログの PEM を運用者が登録) にフォールバックする。
+function provisionGatewayKey(): void {
+  const canSelfRegister = Boolean(config.aedilisBaseUrl && config.aedilisAdminToken);
+  if (canSelfRegister) {
+    console.log(`[ostiarius] 公開鍵を Aedilis に自己登録します: ${config.aedilisBaseUrl}`);
+    void registerGatewayKey({
+      baseUrl: config.aedilisBaseUrl,
+      adminToken: config.aedilisAdminToken,
+      lanId: config.lanId,
+      facilityId: config.facilityId,
+      publicKeyPem: keyPair.publicKeyPem,
+      label: config.label,
+    });
+    return;
+  }
+  // 手動 provision フォールバック — 運用者がこの PEM を登録する。
+  console.log('[ostiarius] AEDILIS_BASE_URL / AEDILIS_ADMIN_TOKEN 未設定 → 手動 provision');
+  console.log('[ostiarius] ── gateway public key (PEM) — Aedilis の POST /api/admin/gateways に登録 ──');
+  console.log(keyPair.publicKeyPem.trim());
+  console.log('[ostiarius] ──────────────────────────────────────────────────────────────────');
+}
+
 serve({ fetch: app.fetch, port: config.port }, (info) => {
   console.log(`[ostiarius] listening on http://0.0.0.0:${info.port}`);
   console.log(`[ostiarius] lanId=${config.lanId} facilityId=${config.facilityId}`);
   console.log(`[ostiarius] rpId=${config.rpId} pwaOrigin=${config.pwaOrigin}`);
   console.log(`[ostiarius] cernere=${config.cernereBaseUrl}`);
+  console.log(`[ostiarius] key source=${keyPair.source}`);
   console.log(`[ostiarius] credentials cached: ${countCredentials(db)}`);
-  console.log('[ostiarius] ── gateway public key (PEM) — Aedilis の POST /api/admin/gateways に登録 ──');
-  console.log(keyPair.publicKeyPem.trim());
-  console.log('[ostiarius] ──────────────────────────────────────────────────────────────────');
+  provisionGatewayKey();
 });
