@@ -52,10 +52,19 @@ assertion を検証する。
 | `CERNERE_SERVICE_TOKEN` | export 用 admin/service Bearer | **必須** |
 | `OSTIARIUS_RP_ID` | WebAuthn rpID (Cernere と同 eTLD+1) | **必須** |
 | `OSTIARIUS_PWA_ORIGIN` | CORS 許可 + expectedOrigin の PWA origin | **必須** |
-| `OSTIARIUS_KEY_PATH` | Ed25519 秘密鍵の永続パス (無ければ生成) | `data/gateway.key` |
+| `OSTIARIUS_PRIVATE_KEY` | Ed25519 秘密鍵 (PKCS#8 PEM)。**本番は Infisical 経由で inject** (secret) | _(空)_ |
+| `OSTIARIUS_KEY_PATH` | Ed25519 秘密鍵の **dev 用** 永続ファイル (env 未設定時のみ。無ければ生成) | `data/gateway.key` |
+| `AEDILIS_BASE_URL` | 公開鍵 自己登録先の Aedilis base URL (#167) | _(空=手動)_ |
+| `AEDILIS_ADMIN_TOKEN` | 自己登録に使う admin Bearer (secret) | _(空=手動)_ |
+| `OSTIARIUS_LABEL` | Aedilis に出すゲートウェイ表示ラベル | _(空)_ |
 | `OSTIARIUS_DATA` | data ディレクトリ | `./data` |
 | `OSTIARIUS_SYNC_INTERVAL_MS` | passkey 同期間隔 | `900000` (15min) |
 | `OSTIARIUS_CHALLENGE_TTL_MS` | challenge TTL | `120000` (2min) |
+
+> **secret の供給**: `CERNERE_SERVICE_TOKEN` / `OSTIARIUS_PRIVATE_KEY` /
+> `AEDILIS_ADMIN_TOKEN` は平文保存しない方針 ([[feedback_config_and_secrets]])。
+> `env-cli.config.ts` に Infisical 設定を定義済み — `npx env-cli` で取得・inject する
+> (Aedilis / Memoria / Cernere と同パターン)。
 
 > **RP ID / origin の前提**: Ostiarius・PWA・Cernere の origin / RPID は
 > **同一 eTLD+1** に揃える必要がある (WebAuthn の制約)。`OSTIARIUS_RP_ID` は
@@ -86,11 +95,27 @@ npm start
 
 > dev server の起動はこのリポの運用方針上 AI 側では行わない。手元で起動する。
 
-## 運用: Aedilis への公開鍵登録
+## 運用: Aedilis への公開鍵登録 (#167)
 
-1. Ostiarius を一度起動すると、`OSTIARIUS_KEY_PATH` に Ed25519 秘密鍵が生成され、
-   **公開鍵 PEM が起動ログ**に出力される (`GET /gateway-public-key` でも取得可)。
-2. その PEM を Aedilis の admin API に登録する:
+attestation の検証鍵として、ゲートウェイの公開鍵を Aedilis の `gateway_registry`
+に登録する必要がある。経路は 2 つ。
+
+### 自己登録 (推奨)
+
+`AEDILIS_BASE_URL` と `AEDILIS_ADMIN_TOKEN` が **両方** 設定されていれば、
+起動時に自動で `POST {AEDILIS_BASE_URL}/api/admin/gateways` へ
+`{ lanId, publicKeyPem, facilityId, label }` を送って自己登録する
+(`server/aedilis-register.ts`)。
+
+- 失敗 (5xx / ネット不通) は warn しつつ数回リトライ。
+- 4xx (権限/設定ミス) はリトライせず即諦め、手動 provision に切り替えるよう促す。
+- どちらか欠けていれば自己登録せず、下記の手動 provision にフォールバックする。
+
+### 手動 provision (フォールバック)
+
+1. Ostiarius を一度起動すると、**公開鍵 PEM が起動ログ**に出力される
+   (`GET /gateway-public-key` でも取得可)。
+2. その PEM を Aedilis の admin API に登録する (CONTRACTS §4):
 
    ```bash
    curl -X POST {AEDILIS}/api/admin/gateways \
@@ -98,8 +123,8 @@ npm start
      -H "content-type: application/json" \
      -d '{
        "lanId": "<OSTIARIUS_LAN_ID>",
-       "facilityId": "<OSTIARIUS_FACILITY_ID>",
        "publicKeyPem": "-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----\n",
+       "facilityId": "<OSTIARIUS_FACILITY_ID>",
        "label": "会場ゲートウェイ 1"
      }'
    ```
@@ -113,12 +138,17 @@ Ostiarius は起動時 + 15min 毎に `GET {CERNERE_BASE_URL}/api/auth/passkey/e
 (Bearer `CERNERE_SERVICE_TOKEN`) を呼び、公開鍵を `credentials` テーブルへ upsert
 する。ネット不通時は前回キャッシュで継続 (warn ログのみ、起動は止めない)。
 
-## セキュリティ注記 (スパイク段階)
+## セキュリティ注記
 
-- Ed25519 **秘密鍵は平文 PKCS#8 PEM** でファイル保存している
-  (`0600` 権限を best-effort で付与)。本来 LUDIARS は secret を平文保存しない方針
-  ([[feedback_config_and_secrets]]) なので、本番化時は OS キーチェーン /
-  secret-agent (`@cernere/env`) に寄せること。
+- Ed25519 秘密鍵の供給は 2 経路 (#166):
+  - **本番**: `OSTIARIUS_PRIVATE_KEY` を **Infisical / secret-agent 経由で inject**
+    する。env に PEM があれば最優先で使い、平文ファイルは置かない
+    ([[feedback_config_and_secrets]])。
+  - **dev**: env 未設定なら `OSTIARIUS_KEY_PATH` の平文 PKCS#8 PEM ファイル
+    (無ければ生成、`0600` を best-effort) にフォールバックする。dev 専用。
+  - 起動ログの `key source=env|file|generated` でどの経路が使われたか確認できる。
+- 個人データは保持しない。`credentials` テーブルは Cernere 由来の公開鍵 +
+  userId アンカーのキャッシュのみ ([[project_personal_data_rule]])。
 - 個人データは保持しない。`credentials` テーブルは Cernere 由来の公開鍵 +
   userId アンカーのキャッシュのみ ([[project_personal_data_rule]])。
 - counter は best-effort。passkey は counter=0 固定が多いため、後退検知は

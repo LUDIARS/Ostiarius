@@ -34,6 +34,14 @@ export interface OstiariusConfig {
   rpId: string;
   pwaOrigin: string;
   keyPath: string;
+  /** OSTIARIUS_PRIVATE_KEY — Infisical inject の PKCS#8 PEM (本番、 空なら file 経路) */
+  privateKeyPem: string;
+  /** AEDILIS_BASE_URL — 公開鍵 自己登録の宛先 (空なら自己登録しない) */
+  aedilisBaseUrl: string;
+  /** AEDILIS_ADMIN_TOKEN — 自己登録に使う admin Bearer (空なら自己登録しない) */
+  aedilisAdminToken: string;
+  /** Aedilis に出すゲートウェイ表示ラベル */
+  label: string;
   dataDir: string;
   dbPath: string;
   syncIntervalMs: number;
@@ -51,6 +59,12 @@ export function loadConfig(): OstiariusConfig {
     rpId: requireEnv('OSTIARIUS_RP_ID'),
     pwaOrigin: requireEnv('OSTIARIUS_PWA_ORIGIN'),
     keyPath: resolve(optionalEnv('OSTIARIUS_KEY_PATH', join(dataDir, 'gateway.key'))),
+    // 本番は Infisical / secret-agent が PEM を inject する。 dev は file 経路。
+    privateKeyPem: optionalEnv('OSTIARIUS_PRIVATE_KEY', ''),
+    // 公開鍵 自己登録 (両方揃って初めて有効、 無ければ手動 provision にフォールバック)。
+    aedilisBaseUrl: optionalEnv('AEDILIS_BASE_URL', '').replace(/\/+$/, ''),
+    aedilisAdminToken: optionalEnv('AEDILIS_ADMIN_TOKEN', ''),
+    label: optionalEnv('OSTIARIUS_LABEL', ''),
     dataDir,
     dbPath: join(dataDir, 'ostiarius.db'),
     // 同期は best-effort、 不通でも前回キャッシュで継続する
