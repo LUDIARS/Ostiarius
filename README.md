@@ -153,3 +153,18 @@ Ostiarius は起動時 + 15min 毎に `GET {CERNERE_BASE_URL}/api/auth/passkey/e
   userId アンカーのキャッシュのみ ([[project_personal_data_rule]])。
 - counter は best-effort。passkey は counter=0 固定が多いため、後退検知は
   warn のみで hard fail しない。
+
+## テスト / E2E 結合確認
+
+```bash
+npm test        # vitest — assertion → attestation 発行レッグの自動 E2E
+```
+
+- `test/checkin.e2e.test.ts` が、`test/webauthn-soft-authenticator.ts` の
+  ソフトウェア WebAuthn authenticator (ES256/P-256) を**「生体タップ」の代替**として
+  使い、`/checkin/begin` → assertion 署名 → `/checkin/finish` → attestation 発行を
+  in-process (実機・ネットワーク・Cernere 不要) で通しで確認する。発行 attestation が
+  Aedilis と同一の Ed25519/SPKI 契約 (CONTRACTS §1) で検証できることまで見る。
+- Cernere 同期 → **実機生体タップ** → Aedilis 出席記録 までのフルスタック結合
+  (別 PC / 会場 LAN / 実機 passkey が要る部分) は [`docs/E2E-checkin.md`](docs/E2E-checkin.md)
+  の runbook を参照。
