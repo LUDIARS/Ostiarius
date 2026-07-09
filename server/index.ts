@@ -24,6 +24,8 @@ import { startCernereSync } from './cernere-sync.ts';
 import { registerGatewayKey } from './aedilis-register.ts';
 import { ChallengeStore } from './challenge-store.ts';
 import { makeCheckinRouter } from './routes/checkin.ts';
+import { makeMobileCheckinRouter } from './routes/mobile-checkin.ts';
+import { createVantanUserClient } from './vantan-user-client.ts';
 
 const config = loadConfig();
 const db = openDb(config.dbPath);
@@ -39,6 +41,20 @@ startCernereSync({
   serviceToken: config.cernereServiceToken,
   intervalMs: config.syncIntervalMs,
 });
+
+// vantan_user プロフィール enrichment (モバイルチェックイン確認画面の department/grade/name 表示) は
+// 任意機能 — OSTIARIUS_CERNERE_PROJECT_CLIENT_ID/_SECRET 未設定なら createVantanUserClient が null を
+// 返し、 以後は enrichment を丸ごとスキップする (コアのチェックインは影響を受けない)。
+const vantanUserClient = createVantanUserClient({
+  cernereBaseUrl: config.cernereBaseUrl,
+  clientId: config.cernereProjectClientId,
+  clientSecret: config.cernereProjectClientSecret,
+});
+if (vantanUserClient) {
+  vantanUserClient.start();
+} else {
+  console.warn('[ostiarius] OSTIARIUS_CERNERE_PROJECT_CLIENT_ID/_SECRET 未設定 → vantan_user プロフィール enrichment は無効 (モバイルチェックインは department/grade/name を表示しません)');
+}
 
 const app = new Hono();
 
@@ -76,6 +92,24 @@ app.route(
   }),
 );
 
+// PC無し/未登録passkey来場者向けフォールバック (Ostiarius 自身の origin で配信 = CORS 不要)。
+app.route(
+  '/',
+  makeMobileCheckinRouter({
+    wifiSsid: config.wifiSsid,
+    wifiPassword: config.wifiPassword,
+    aedilisBaseUrl: config.aedilisBaseUrl,
+    loginDeps: {
+      cernereBaseUrl: config.cernereBaseUrl,
+      facilityId: config.facilityId,
+      lanId: config.lanId,
+      challenges,
+      privateKey: keyPair.privateKey,
+      vantanUserClient,
+    },
+  }),
+);
+
 app.notFound((c) => c.json({ error: 'not_found' }, 404));
 
 // 公開鍵の Aedilis 自己登録 (#167)。 env が両方そろっていれば起動後に登録、
@@ -108,5 +142,8 @@ serve({ fetch: app.fetch, port: config.port }, (info) => {
   console.log(`[ostiarius] cernere=${config.cernereBaseUrl}`);
   console.log(`[ostiarius] key source=${keyPair.source}`);
   console.log(`[ostiarius] credentials cached: ${countCredentials(db)}`);
+  console.log(
+    `[ostiarius] mobile-checkin: wifiQr=${config.wifiSsid ? 'on' : 'off'} vantanUserEnrichment=${vantanUserClient ? 'on' : 'off'} aedilis=${config.aedilisBaseUrl || '(未設定)'}`,
+  );
   provisionGatewayKey();
 });
