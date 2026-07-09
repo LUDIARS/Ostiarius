@@ -46,6 +46,16 @@ export interface OstiariusConfig {
   dbPath: string;
   syncIntervalMs: number;
   challengeTtlMs: number;
+  /** OSTIARIUS_WIFI_SSID — 会場 Wi-Fi QR に載せる SSID (空なら QR セクションを出さない、任意機能) */
+  wifiSsid: string;
+  /** OSTIARIUS_WIFI_PASSWORD — 同上のパスワード (空可、SSID が空ならどのみち未使用) */
+  wifiPassword: string;
+  /** OSTIARIUS_CERNERE_PROJECT_CLIENT_ID — vantan_user プロフィール読取用 Cernere project client_id
+   *  (空なら vantan-user-client.ts の createVantanUserClient が null を返し enrichment を丸ごとスキップする。
+   *   モバイルチェックイン本体 (login + attestation + Aedilis verify) には影響しない) */
+  cernereProjectClientId: string;
+  /** OSTIARIUS_CERNERE_PROJECT_CLIENT_SECRET — 同上の client_secret (secret) */
+  cernereProjectClientSecret: string;
 }
 
 export function loadConfig(): OstiariusConfig {
@@ -70,5 +80,12 @@ export function loadConfig(): OstiariusConfig {
     // 同期は best-effort、 不通でも前回キャッシュで継続する
     syncIntervalMs: Number(optionalEnv('OSTIARIUS_SYNC_INTERVAL_MS', String(15 * 60 * 1000))),
     challengeTtlMs: Number(optionalEnv('OSTIARIUS_CHALLENGE_TTL_MS', String(2 * 60 * 1000))),
+    // Wi-Fi QR は任意機能。 SSID 未設定 = その会場は QR を出さない (エラーにしない)。
+    wifiSsid: optionalEnv('OSTIARIUS_WIFI_SSID', ''),
+    wifiPassword: optionalEnv('OSTIARIUS_WIFI_PASSWORD', ''),
+    // vantan_user プロフィール enrichment も任意機能。 未設定は起動を止めない
+    // (createVantanUserClient 側が null を返し、 呼び出し側が enrichment をスキップする)。
+    cernereProjectClientId: optionalEnv('OSTIARIUS_CERNERE_PROJECT_CLIENT_ID', ''),
+    cernereProjectClientSecret: optionalEnv('OSTIARIUS_CERNERE_PROJECT_CLIENT_SECRET', ''),
   };
 }
