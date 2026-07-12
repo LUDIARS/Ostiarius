@@ -10,7 +10,7 @@
 
 import { Hono } from 'hono';
 
-import { generateWifiQrPng, loginAndAttest, type MobileCheckinDeps } from '../mobile-checkin.ts';
+import { generateWifiQrPng, loginAndAttest, tokenAndAttest, type MobileCheckinDeps } from '../mobile-checkin.ts';
 
 export interface MobileCheckinRouteDeps {
   wifiSsid: string;
@@ -189,6 +189,26 @@ export function makeMobileCheckinRouter(deps: MobileCheckinRouteDeps): Hono {
     }
 
     const result = await loginAndAttest(deps.loginDeps, email, password);
+    if ('error' in result) {
+      return c.json({ error: result.error }, 401);
+    }
+    return c.json(result);
+  });
+
+  // 既に Cernere ログイン済み (PWA が accessToken を保持) の自動チェックイン。
+  // passkey/パスワードを再入力させず、 Bearer or { accessToken } を検証して attestation を返す。
+  r.post('/checkin/session', async (c) => {
+    const auth = c.req.header('authorization') ?? '';
+    let token = /^bearer\s+/i.test(auth) ? auth.replace(/^bearer\s+/i, '').trim() : '';
+    if (!token) {
+      const body = (await c.req.json().catch(() => null)) as { accessToken?: unknown } | null;
+      if (typeof body?.accessToken === 'string') token = body.accessToken.trim();
+    }
+    if (!token) {
+      return c.json({ error: 'accessToken is required' }, 400);
+    }
+
+    const result = await tokenAndAttest(deps.loginDeps, token);
     if ('error' in result) {
       return c.json({ error: result.error }, 401);
     }
