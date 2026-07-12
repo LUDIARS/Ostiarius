@@ -156,3 +156,67 @@ export async function loginAndAttest(
   console.log(`[ostiarius] mobile check-in verified user=${userId} → attestation issued`);
   return { accessToken, attestation, profile };
 }
+
+/**
+ * 既に Cernere にログイン済みのユーザ向け。 保持している accessToken を Cernere で
+ * 検証 (`/api/auth/me`) し、 有効なら passkey/パスワードを再入力させずに presence
+ * attestation を発行する。 「会場 LAN に届く = presence」 の前提は passkey 経路と
+ * 同じで、 ここでは本人性を既存セッションで代替する (端末に passkey が無いスマホでも
+ * 一度 Cernere ログイン済みなら自動チェックインできる)。
+ *
+ * - token 無効 / Cernere 不通 → 再ログイン誘導のエラー。
+ * - attestation 形式は loginAndAttest と完全に同一 (Aedilis 側検証が同じ)。
+ */
+export async function tokenAndAttest(
+  deps: MobileCheckinDeps,
+  accessToken: string,
+): Promise<LoginAndAttestResult | { error: string }> {
+  const fetchImpl = deps.fetchImpl ?? fetch;
+
+  let res: Response;
+  try {
+    res = await fetchImpl(`${deps.cernereBaseUrl}/api/auth/me`, {
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(`[ostiarius] session check-in 失敗 (Cernere 不通): ${msg}`);
+    return { error: 'ログインサーバーに接続できませんでした。しばらくしてから再度お試しください。' };
+  }
+
+  if (!res.ok) {
+    return { error: 'セッションが無効です。もう一度ログインしてください。' };
+  }
+
+  let body: { id?: unknown } | null;
+  try {
+    body = (await res.json()) as { id?: unknown };
+  } catch {
+    body = null;
+  }
+  const userId = body?.id;
+  if (typeof userId !== 'string' || !userId) {
+    console.warn('[ostiarius] session check-in: /api/auth/me response が想定形状と異なる');
+    return { error: 'セッションが無効です。もう一度ログインしてください。' };
+  }
+
+  const nonce = newNonce();
+  deps.challenges.put(nonce);
+  const attestation = signAttestation(
+    { sub: userId, placeId: deps.facilityId, lanId: deps.lanId, nonce, issuedAt: Date.now() },
+    deps.privateKey,
+  );
+
+  let profile: VantanUserProfile | null = null;
+  if (deps.vantanUserClient) {
+    try {
+      profile = await deps.vantanUserClient.getVantanUserProfile(userId);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[ostiarius] session check-in: vantan_user profile 取得失敗 (継続): ${msg}`);
+    }
+  }
+
+  console.log(`[ostiarius] session check-in verified user=${userId} → attestation issued`);
+  return { accessToken, attestation, profile };
+}
