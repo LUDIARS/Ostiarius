@@ -149,8 +149,6 @@ Ostiarius は起動時 + 15min 毎に `GET {CERNERE_BASE_URL}/api/auth/passkey/e
   - 起動ログの `key source=env|file|generated` でどの経路が使われたか確認できる。
 - 個人データは保持しない。`credentials` テーブルは Cernere 由来の公開鍵 +
   userId アンカーのキャッシュのみ ([[project_personal_data_rule]])。
-- 個人データは保持しない。`credentials` テーブルは Cernere 由来の公開鍵 +
-  userId アンカーのキャッシュのみ ([[project_personal_data_rule]])。
 - counter は best-effort。passkey は counter=0 固定が多いため、後退検知は
   warn のみで hard fail しない。
 
