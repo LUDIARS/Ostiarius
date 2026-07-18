@@ -1,0 +1,45 @@
+# Excubitor catalog 断片 — このリポ自身のサービス定義。
+# 公開 Excubitor リポの services.yaml に private 定義 (infisical project_id 等) を
+# 焼き込まないため、 各サービスの catalog エントリは自リポに置く。
+# Excubitor が ${ARS_ROOT} 配下を走査して集積する (Excubitor catalog/FRAGMENTS.md 参照)。
+services:
+  - code: ostiarius
+    name: Ostiarius (Wi-Fi内出席ゲートウェイ)
+    # LAN-only。Cloudflare Tunnel / public domain / subdomain は割り当てない。
+    tier: saas
+    project_code: ostiarius
+    component: server
+    port: 17590
+    repo: LUDIARS/Ostiarius
+    runtime: node
+    cwd: ${ARS_ROOT}/Ostiarius
+    command: npm run dev
+    allow_hot_reload: true
+    depends_on: [cernere]
+    autostart: false
+    env:
+      OSTIARIUS_PORT: "17590"
+    required_env:
+      - OSTIARIUS_LAN_ID
+      - OSTIARIUS_FACILITY_ID
+      - CERNERE_BASE_URL
+      - OSTIARIUS_RP_ID
+      - OSTIARIUS_PWA_ORIGIN
+    infisical:
+      project_id: 19c9e77d-646c-4a0e-a091-b494234953ea
+      environment: dev
+      inject: true
+      # TLS_MODEは未設定時off。証明書3値と同時にrequiredをInfisicalへ投入して切り替える。
+      include: [OSTIARIUS_LAN_ID, OSTIARIUS_FACILITY_ID, OSTIARIUS_RP_ID, OSTIARIUS_PWA_ORIGIN, OSTIARIUS_LABEL, OSTIARIUS_TLS_MODE, OSTIARIUS_LAN_HOSTNAME, OSTIARIUS_TLS_CERTIFICATE_PEM, OSTIARIUS_TLS_PRIVATE_KEY_PEM]
+    requires_secret:
+      - service: cernere
+        keys: [EXCUBITOR_CERNERE_CLIENT_ID, EXCUBITOR_CERNERE_CLIENT_SECRET]
+    cernere_launch_credentials:
+      target_project: ostiarius
+    health:
+      type: http
+      url: http://localhost:17590/api/health
+      interval_sec: 30
+    provides:
+      OSTIARIUS_URL: http://${host}:${port}
+      OSTIARIUS_BASE_URL: http://${host}:${port}
