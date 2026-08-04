@@ -8,11 +8,14 @@
     "dev": "tsx watch --env-file-if-exists=.env.secrets --env-file-if-exists=.env server/index.ts",
     "start": "tsx --env-file-if-exists=.env.secrets --env-file-if-exists=.env server/index.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "tls:issue": "tsx server/acme/cli.ts issue",
+    "tls:renew": "tsx server/acme/cli.ts renew"
   },
   "dependencies": {
     "@hono/node-server": "^2.0.4",
     "@simplewebauthn/server": "^13.3.0",
+    "acme-client": "^5.4.0",
     "better-sqlite3": "^12.10.0",
     "hono": "^4.12.23",
     "qrcode": "^1.5.4",

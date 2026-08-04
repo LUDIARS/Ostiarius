@@ -11,6 +11,7 @@ Bibliotheca と同パターン。
 | `CERNERE_SERVICE_TOKEN` | Cernere passkey export 用 admin Bearer | Infisical |
 | `OSTIARIUS_PRIVATE_KEY` | Ed25519 秘密鍵 (PKCS#8 PEM)。本番はこれを inject | Infisical |
 | `AEDILIS_ADMIN_TOKEN` | 公開鍵 自己登録の admin Bearer | Infisical |
+| `CLOUDFLARE_DNS_API_TOKEN` | ACME DNS-01 の TXT 操作 (CLI 専用) | Infisical |
 
 これらは `env-cli.config.ts` の `infraKeys` に default を置かず、必ず Infisical から供給する。
 
@@ -51,7 +52,17 @@ npx env-cli
 
 > 物理 E2E の通し手順は `docs/E2E-checkin.md` §B (runbook) を参照。
 
+## TLS 証明書 (ACME DNS-01)
+
+`npm run tls:issue` / `tls:renew` は `data/acme/` に PEM を書くだけで Infisical を更新しない。
+発行後に `OSTIARIUS_TLS_CERTIFICATE_PEM` / `OSTIARIUS_TLS_PRIVATE_KEY_PEM` /
+`OSTIARIUS_TLS_MODE` を運用者が Infisical に登録する。`data/acme/` (秘密鍵・account key) は
+gitignore 済みで、リポジトリには入れない。Cloudflare token は `--token` で argv に渡さず
+env (`CLOUDFLARE_DNS_API_TOKEN`) で供給する (プロセス一覧・履歴に残るため)。
+詳細: [feature/lan-tls-certificate.md](../feature/lan-tls-certificate.md)。
+
 ## 関連
 
 - env 一覧: [setup/configuration.md](./configuration.md)
 - 鍵管理: [feature/attestation-key-management.md](../feature/attestation-key-management.md)
+- TLS 証明書: [feature/lan-tls-certificate.md](../feature/lan-tls-certificate.md)

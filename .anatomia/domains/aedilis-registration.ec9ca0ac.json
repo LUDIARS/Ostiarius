@@ -1,0 +1,40 @@
+{
+  "name": "aedilis-registration",
+  "description": "attestation 検証鍵として、ゲートウェイ公開鍵を Aedilis の gateway_registry へ登録する外部接点。env が揃えば起動時に自己登録 (2xx成功/4xx即諦め/5xxリトライ)、揃わなければ起動ログPEMの手動 provision にフォールバック。",
+  "presetRules": [
+    {
+      "preset": "couplingCap",
+      "params": {
+        "targetPattern": "/server/aedilis-register\\.ts",
+        "by": "path",
+        "maxFanOut": 9007199254740991
+      }
+    },
+    {
+      "preset": "couplingCap",
+      "params": {
+        "targetPattern": "registerGatewayKey",
+        "by": "name",
+        "maxFanOut": 9007199254740991
+      }
+    },
+    {
+      "preset": "couplingCap",
+      "params": {
+        "targetPattern": "provisionGatewayKey",
+        "by": "name",
+        "maxFanOut": 9007199254740991
+      }
+    }
+  ],
+  "templateRules": [],
+  "cardTemplate": "Summarise the \"aedilis-registration\" domain: attestation 検証鍵として、ゲートウェイ公開鍵を Aedilis の gateway_registry へ登録する外部接点。env が揃えば起動時に自己登録 (2xx成功/4xx即諦め/5xxリトライ)、揃わなければ起動ログPEMの手動 provision にフォールバック。",
+  "source": "spec-draft",
+  "mechanics": [],
+  "specRefs": [
+    "feature: Aedilis への公開鍵 自己登録 (#167)",
+    "interface: Aedilis gateway registry (連携先 — 公開鍵登録)"
+  ],
+  "rationale": "HTTP 登録に責務を絞った独立機能 (SRP: やるか否かの判断は index 側)。連携先契約とリトライ方針を持つ Aedilis 向けクライアントドメイン。",
+  "updatedAt": "2026-08-04T00:37:16.474Z"
+}

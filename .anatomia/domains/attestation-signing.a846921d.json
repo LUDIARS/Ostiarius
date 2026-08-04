@@ -1,0 +1,72 @@
+{
+  "name": "attestation-signing",
+  "description": "Ed25519 署名鍵の load/create (env→file→generated の3経路) と、CONTRACTS §1 固定形式 (base64url(payload).base64url(sig)) での attestation sign/verify。公開鍵 (SPKI PEM) の公開もここ。",
+  "presetRules": [
+    {
+      "preset": "couplingCap",
+      "params": {
+        "targetPattern": "/server/attestation\\.ts",
+        "by": "path",
+        "maxFanOut": 9007199254740991
+      }
+    },
+    {
+      "preset": "couplingCap",
+      "params": {
+        "targetPattern": "/server/attestation-key\\.ts",
+        "by": "path",
+        "maxFanOut": 9007199254740991
+      }
+    },
+    {
+      "preset": "couplingCap",
+      "params": {
+        "targetPattern": "signAttestation",
+        "by": "name",
+        "maxFanOut": 9007199254740991
+      }
+    },
+    {
+      "preset": "couplingCap",
+      "params": {
+        "targetPattern": "verifyAttestation",
+        "by": "name",
+        "maxFanOut": 9007199254740991
+      }
+    },
+    {
+      "preset": "couplingCap",
+      "params": {
+        "targetPattern": "loadOrCreateKeyPair",
+        "by": "name",
+        "maxFanOut": 9007199254740991
+      }
+    },
+    {
+      "preset": "couplingCap",
+      "params": {
+        "targetPattern": "b64urlEncode",
+        "by": "name",
+        "maxFanOut": 9007199254740991
+      }
+    },
+    {
+      "preset": "couplingCap",
+      "params": {
+        "targetPattern": "b64urlDecode",
+        "by": "name",
+        "maxFanOut": 9007199254740991
+      }
+    }
+  ],
+  "templateRules": [],
+  "cardTemplate": "Summarise the \"attestation-signing\" domain: Ed25519 署名鍵の load/create (env→file→generated の3経路) と、CONTRACTS §1 固定形式 (base64url(payload).base64url(sig)) での attestation sign/verify。公開鍵 (SPKI PEM) の公開もここ。",
+  "source": "spec-draft",
+  "mechanics": [],
+  "specRefs": [
+    "feature: attestation 署名鍵の管理 (Ed25519)",
+    "feature: チェックイン検証 / attestation の形式"
+  ],
+  "rationale": "鍵供給と署名形式は Aedilis 検証契約に縛られた独立した関心事で、checkin/mobile 双方から共有される。形式を変えると連携が破綻するため境界を明示。",
+  "updatedAt": "2026-08-04T00:37:16.501Z"
+}

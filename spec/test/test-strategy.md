@@ -14,8 +14,8 @@ Ostiarius のテスト設計と現状。サービス種別は「会場 LAN 上�
 | 自動 E2E (in-process) | **あり** | `test/checkin.e2e.test.ts` (vitest 8 ケース) |
 | ソフト authenticator | **あり** | `test/webauthn-soft-authenticator.ts` (生体タップ代替) |
 | 依存監査 | **あり** | `npm audit --omit=dev --audit-level=high` (CI ゲート) |
-| モジュール単体 unit | **無し** | challenge-store / attestation / cernere-sync / config 等の個別 unit は未整備 |
-| ライブ統合 (実 HTTP) | **無し** | Cernere 同期 / Aedilis 自己登録の実 HTTP 経路は自動化されていない |
+| モジュール単体 unit | **一部** | ACME のみ有り (`test/acme-*.test.ts`)。challenge-store / attestation / cernere-sync / config は未整備 |
+| ライブ統合 (実 HTTP) | **無し** | Cernere 同期 / Aedilis 自己登録 / ACME 実発行 (Let's Encrypt + Cloudflare) の実 HTTP 経路は自動化されていない |
 | 物理 E2E (実機/会場 LAN) | **手動のみ** | `docs/E2E-checkin.md` §B runbook (AI 実行不能) |
 
 ## 1. ビルドチェック / 型 (あり)

@@ -35,6 +35,22 @@ env-cli (Infisical) 設定は `env-cli.config.ts`。
 
 派生: `dbPath = {dataDir}/ostiarius.db`。
 
+### ACME (TLS 証明書 CLI 専用)
+
+server 本体では読まず、`npm run tls:issue` / `tls:renew` だけが使う
+([feature/lan-tls-certificate.md](../feature/lan-tls-certificate.md))。
+空文字 / 空白のみは「未設定」と同じ扱い。
+
+| key | 役割 | 既定 | 必須 |
+|---|---|---|---|
+| `CLOUDFLARE_DNS_API_TOKEN` | DNS-01 の TXT 操作用 token (**secret**) | — | **必須** |
+| `OSTIARIUS_ACME_EMAIL` | ACME account の連絡先 | — | **必須** |
+| `OSTIARIUS_LAN_HOSTNAME` | 証明書の FQDN (zone は末尾 2 ラベル) | — | **必須** |
+| `OSTIARIUS_ACME_DIRECTORY` | `production` / `staging` / 任意の directory URL | `production` | |
+| `OSTIARIUS_ACME_OUTPUT_DIR` | PEM 出力先 (gitignore 済み) | `data/acme` | |
+| `OSTIARIUS_ACME_ACCOUNT_KEY_PATH` | ACME account key (**secret**、無ければ生成) | `data/acme/account.key` | |
+| `OSTIARIUS_ACME_RENEW_BEFORE_DAYS` | 失効の何日前から更新するか | `30` | |
+
 > `OSTIARIUS_PRIVATE_KEY` は config 上は default 空 (空なら file 経路にフォールバック)
 > だが、`env-cli.config.ts` の `required.production` に含まれており **本番では必須**
 > (平文ファイルを使わない、[setup/secrets.md](./secrets.md))。
