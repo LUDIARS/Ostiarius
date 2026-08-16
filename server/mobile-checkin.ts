@@ -9,9 +9,11 @@
 
 import { randomBytes } from 'node:crypto';
 import type { KeyObject } from 'node:crypto';
+import type Database from 'better-sqlite3';
 import { toBuffer as qrToBuffer } from 'qrcode';
 
 import { b64urlEncode, signAttestation } from './attestation.ts';
+import { recordVerificationIssued } from './db.ts';
 import type { ChallengeStore } from './challenge-store.ts';
 import type { VantanUserProfile } from './vantan-user-client.ts';
 
@@ -33,6 +35,8 @@ export interface MobileCheckinDeps {
   privateKey: KeyObject;
   /** 未構成 (OSTIARIUS_CERNERE_PROJECT_CLIENT_ID/_SECRET 未設定) なら null。 */
   vantanUserClient: VantanUserClientLike | null;
+  /** 本人確認の発行監査を必ず記録する永続層。 */
+  db: Database.Database;
   /** テスト注入用。 未指定ならグローバル fetch。 */
   fetchImpl?: typeof fetch;
 }
@@ -138,9 +142,10 @@ export async function loginAndAttest(
   const nonce = newNonce();
   deps.challenges.put(nonce);
   const attestation = signAttestation(
-    { sub: userId, placeId: deps.facilityId, lanId: deps.lanId, nonce, issuedAt: Date.now() },
+    { sub: userId, placeId: deps.facilityId, lanId: deps.lanId, nonce, issuedAt: Date.now(), method: 'password', assurance: 'low' },
     deps.privateKey,
   );
+  recordVerificationIssued(deps.db, { method: 'password', subjectUser: userId });
 
   let profile: VantanUserProfile | null = null;
   if (deps.vantanUserClient) {
@@ -204,9 +209,10 @@ export async function tokenAndAttest(
   const nonce = newNonce();
   deps.challenges.put(nonce);
   const attestation = signAttestation(
-    { sub: userId, placeId: deps.facilityId, lanId: deps.lanId, nonce, issuedAt: Date.now() },
+    { sub: userId, placeId: deps.facilityId, lanId: deps.lanId, nonce, issuedAt: Date.now(), method: 'session', assurance: 'low' },
     deps.privateKey,
   );
+  recordVerificationIssued(deps.db, { method: 'session', subjectUser: userId });
 
   let profile: VantanUserProfile | null = null;
   if (deps.vantanUserClient) {

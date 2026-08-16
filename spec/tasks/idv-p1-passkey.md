@@ -20,16 +20,16 @@ memory_links: []
 
 ## 完了条件
 
-- [ ] `signAttestation` payload に `method` / `assurance` を末尾追加 (順序固定)。既存 5 フィールドの互換テストが通る。
-- [ ] `/identity/session` (POST/GET) の kiosk セッション store (TTL 60s、in-memory) を実装。
-- [ ] `/identity/passkey/begin|finish` を既存 `/checkin/begin|finish` と同一ロジックでマウント (共通関数へ抽出、旧パスは互換維持)。finish で `method=passkey`、`assurance=medium`、`sessionId` 紐づけで `state=issued`。
-- [ ] `GET /identity/passkey/register-hint`: `{CERNERE_FRONTEND_URL}/profile#passkey` の URL + QR (SVG) を返す (Cernere API は呼ばない。device-link は step-up proof 必須なので kiosk では扱わない)。env `CERNERE_FRONTEND_URL` を config に追加。
-- [ ] `/kiosk` 静的画面 (Ostiarius 配信、`OSTIARIUS_KIOSK_TOKEN` 必須): 「パスキーで出席」→ 生徒端末用 QR (`{OSTIARIUS_PWA_ORIGIN}/checkin?nonce=`) と「端末を登録」→ register-hint の QR。完了をポーリングで表示。顔認証ボタンは P2 まで無効表示。
-- [ ] `session` / `password` (#5 #6) を `OSTIARIUS_LEGACY_METHODS` で既定無効化、有効時は `method` / `assurance=low` を付与。
-- [ ] `verification_events` テーブル (data/face-templates.md) を追加し、passkey/legacy の issued を記録 (画像なし)。
-- [ ] `/api/health` に `methods` (有効な method 一覧) を追加。
-- [ ] spec: `interface/http-checkin.md` に `/identity/passkey/*` へのリンクと `method` 追加を反映。README の役割説明を更新。
-- [ ] `npm run typecheck` / `npm test` 成功。vitest でセッション遷移・attestation 拡張・legacy 無効化をカバー。
+- [x] `signAttestation` payload に `method` / `assurance` を末尾追加 (順序固定)。既存 5 フィールドの互換テストが通る。
+- [x] `/identity/session` (POST/GET) の kiosk セッション store (TTL 60s、in-memory) を実装。
+- [x] `/identity/passkey/begin|finish` を既存 `/checkin/begin|finish` と同一ロジックでマウント (共通関数へ抽出、旧パスは互換維持)。finish で `method=passkey`、`assurance=medium`、`sessionId` 紐づけで `state=issued`。
+- [x] `GET /identity/passkey/register-hint`: `{CERNERE_FRONTEND_URL}/profile#passkey` の URL + QR (SVG) を返す (Cernere API は呼ばない。device-link は step-up proof 必須なので kiosk では扱わない)。env `CERNERE_FRONTEND_URL` を config に追加。
+- [x] `/kiosk` 静的画面 (Ostiarius 配信、`OSTIARIUS_KIOSK_TOKEN` 必須): 「パスキーで出席」→ 生徒端末用 QR (`{OSTIARIUS_PWA_ORIGIN}/checkin?nonce=`) と「端末を登録」→ register-hint の QR。完了をポーリングで表示。顔認証ボタンは P2 まで無効表示。
+- [x] `session` / `password` (#5 #6) を `OSTIARIUS_LEGACY_METHODS` で既定無効化、有効時は `method` / `assurance=low` を付与。
+- [x] `verification_events` テーブル (data/face-templates.md) を追加し、passkey/legacy の issued を記録 (画像なし)。
+- [x] `/api/health` に `methods` (有効な method 一覧) を追加。
+- [x] spec: `interface/http-checkin.md` に `/identity/passkey/*` へのリンクと `method` 追加を反映。README の役割説明を更新。
+- [x] `npm run typecheck` / `npm test` 成功。vitest でセッション遷移・attestation 拡張・legacy 無効化をカバー。
 - [ ] 1 PR (Revisor local PR、base main)。
 
 ## スコープ外

@@ -13,8 +13,10 @@ export class ChallengeStore {
 
   constructor(private readonly ttlMs: number) {}
 
-  put(challenge: string): void {
-    this.map.set(challenge, { expiresAt: Date.now() + this.ttlMs });
+  put(challenge: string): number {
+    const expiresAt = Date.now() + this.ttlMs;
+    this.map.set(challenge, { expiresAt });
+    return expiresAt;
   }
 
   /** 存在し未失効なら true を返し、 1-shot で消費する (replay 防止)。 */

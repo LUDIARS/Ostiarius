@@ -15,6 +15,7 @@ import {
 } from '../server/mobile-checkin.ts';
 import { makeMobileCheckinRouter } from '../server/routes/mobile-checkin.ts';
 import { ChallengeStore } from '../server/challenge-store.ts';
+import { openDb } from '../server/db.ts';
 import { verifyAttestation } from '../server/attestation.ts';
 import type { VantanUserProfile } from '../server/vantan-user-client.ts';
 
@@ -59,6 +60,7 @@ function makeDeps(overrides: Partial<MobileCheckinDeps> = {}): MobileCheckinDeps
     challenges: new ChallengeStore(2 * 60 * 1000),
     privateKey: pair.privateKey,
     vantanUserClient: null,
+    db: openDb(':memory:'),
     ...overrides,
   };
 }
@@ -155,6 +157,10 @@ describe('loginAndAttest', () => {
         body: JSON.stringify({ email: 'alice@example.com', password: 'correct-horse' }),
       }),
     );
+    const event = deps.db.prepare(
+      'SELECT method, outcome, subject_user FROM verification_events',
+    ).get();
+    expect(event).toEqual({ method: 'password', outcome: 'issued', subject_user: 'user-42' });
   });
 
   it('the returned attestation verifies against the gateway key pair used to sign it', async () => {
@@ -174,6 +180,8 @@ describe('loginAndAttest', () => {
     expect(v.payload?.lanId).toBe('lan-test-1');
     expect(typeof v.payload?.nonce).toBe('string');
     expect(v.payload?.issuedAt).toBeGreaterThan(0);
+    expect(v.payload?.method).toBe('password');
+    expect(v.payload?.assurance).toBe('low');
   });
 
   it('returns a clean error on wrong credentials (Cernere HTTP non-200)', async () => {

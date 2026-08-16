@@ -25,11 +25,32 @@ function optionalEnv(name: string, fallback: string): string {
   return v && v.trim() ? v.trim() : fallback;
 }
 
+function normalizeHttpOrigin(name: string, value: string): string {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error(`${name} must be an absolute HTTP(S) origin`);
+  }
+  if (
+    (url.protocol !== 'http:' && url.protocol !== 'https:') ||
+    url.username ||
+    url.password ||
+    url.pathname !== '/' ||
+    url.search ||
+    url.hash
+  ) {
+    throw new Error(`${name} must be an HTTP(S) origin without credentials, path, query, or fragment`);
+  }
+  return url.origin;
+}
+
 export interface OstiariusConfig {
   port: number;
   lanId: string;
   facilityId: string;
   cernereBaseUrl: string;
+  cernereFrontendUrl: string;
   cernereServiceToken: string;
   rpId: string;
   pwaOrigin: string;
@@ -58,18 +79,25 @@ export interface OstiariusConfig {
   cernereProjectClientSecret: string;
   /** OSTIARIUS_LEGACY_METHODS — 明示的に許可した旧来の本人確認経路。既定は全て無効。 */
   legacyMethods: readonly string[];
+  kioskToken: string;
 }
 
 export function loadConfig(): OstiariusConfig {
   const dataDir = resolve(optionalEnv('OSTIARIUS_DATA', join(__dirname, '..', 'data')));
+  const cernereBaseUrl = requireEnv('CERNERE_BASE_URL').replace(/\/+$/, '');
+  const configuredFrontendUrl = process.env.CERNERE_FRONTEND_URL?.trim();
+  const cernereFrontendUrl = configuredFrontendUrl
+    ? normalizeHttpOrigin('CERNERE_FRONTEND_URL', configuredFrontendUrl)
+    : normalizeHttpOrigin('CERNERE_BASE_URL', new URL(cernereBaseUrl).origin);
   return {
     port: Number(optionalEnv('OSTIARIUS_PORT', '17590')),
     lanId: requireEnv('OSTIARIUS_LAN_ID'),
     facilityId: requireEnv('OSTIARIUS_FACILITY_ID'),
-    cernereBaseUrl: requireEnv('CERNERE_BASE_URL').replace(/\/+$/, ''),
+    cernereBaseUrl,
+    cernereFrontendUrl,
     cernereServiceToken: requireEnv('CERNERE_SERVICE_TOKEN'),
     rpId: requireEnv('OSTIARIUS_RP_ID'),
-    pwaOrigin: requireEnv('OSTIARIUS_PWA_ORIGIN'),
+    pwaOrigin: normalizeHttpOrigin('OSTIARIUS_PWA_ORIGIN', requireEnv('OSTIARIUS_PWA_ORIGIN')),
     keyPath: resolve(optionalEnv('OSTIARIUS_KEY_PATH', join(dataDir, 'gateway.key'))),
     // 本番は Infisical / secret-agent が PEM を inject する。 dev は file 経路。
     privateKeyPem: optionalEnv('OSTIARIUS_PRIVATE_KEY', ''),
@@ -94,5 +122,6 @@ export function loadConfig(): OstiariusConfig {
       .split(',')
       .map((method) => method.trim())
       .filter(Boolean),
+    kioskToken: requireEnv('OSTIARIUS_KIOSK_TOKEN'),
   };
 }

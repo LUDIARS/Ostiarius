@@ -15,7 +15,14 @@ export interface AttestationPayload {
   lanId: string; // 発行ゲートウェイ ID (Aedilis が公開鍵を引くキー)
   nonce: string; // 検証に使った challenge (base64url)。 replay 検出用
   issuedAt: number; // epoch ms。 出席時刻の正本 (ゲートウェイ時計)
+  /** P1 以降の本人確認手段。旧5フィールドの署名済み payload を読むため optional。 */
+  method?: AttestationMethod;
+  /** P1 以降の保証水準。旧5フィールドの署名済み payload を読むため optional。 */
+  assurance?: AttestationAssurance;
 }
+
+export type AttestationMethod = 'face' | 'face_passive' | 'passkey' | 'staff_override' | 'session' | 'password';
+export type AttestationAssurance = 'high' | 'medium' | 'manual' | 'low';
 
 export function b64urlEncode(buf: Buffer): string {
   return buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');

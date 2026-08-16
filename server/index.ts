@@ -23,12 +23,18 @@ import { loadOrCreateKeyPair } from './attestation-key.ts';
 import { startCernereSync } from './cernere-sync.ts';
 import { registerGatewayKey } from './aedilis-register.ts';
 import { ChallengeStore } from './challenge-store.ts';
+import { IdentitySessionStore } from './identity-session-store.ts';
+import { KioskAuthorization } from './kiosk-authorization.ts';
 import { makeCheckinRouter } from './routes/checkin.ts';
 import { makeMobileCheckinRouter } from './routes/mobile-checkin.ts';
+import { makeIdentityRouter } from './routes/identity.ts';
+import { makeKioskRouter } from './routes/kiosk.ts';
 import { createVantanUserClient } from './vantan-user-client.ts';
 
 const config = loadConfig();
 const db = openDb(config.dbPath);
+const identitySessions = new IdentitySessionStore();
+const kioskAuthorization = new KioskAuthorization(config.kioskToken);
 const keyPair = loadOrCreateKeyPair({
   privateKeyPem: config.privateKeyPem,
   keyPath: config.keyPath,
@@ -75,6 +81,7 @@ app.get('/api/health', (c) =>
     lanId: config.lanId,
     facilityId: config.facilityId,
     credentials: countCredentials(db),
+    methods: ['passkey', ...config.legacyMethods.filter((method) => method === 'session' || method === 'password')],
   }),
 );
 
@@ -92,6 +99,17 @@ app.route(
   }),
 );
 
+app.route('/', makeIdentityRouter({
+  db, challenges, lanId: config.lanId, facilityId: config.facilityId, rpId: config.rpId,
+  pwaOrigin: config.pwaOrigin, privateKey: keyPair.privateKey, cernereFrontendUrl: config.cernereFrontendUrl,
+  kioskAuthorization, sessions: identitySessions,
+}));
+app.route('/', makeKioskRouter({
+  authorization: kioskAuthorization,
+  pwaOrigin: config.pwaOrigin,
+  sessions: identitySessions,
+}));
+
 // PC無し/未登録passkey来場者向けフォールバック (Ostiarius 自身の origin で配信 = CORS 不要)。
 app.route(
   '/',
@@ -108,6 +126,7 @@ app.route(
       challenges,
       privateKey: keyPair.privateKey,
       vantanUserClient,
+      db,
     },
   }),
 );

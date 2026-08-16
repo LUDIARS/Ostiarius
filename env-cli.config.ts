@@ -9,6 +9,7 @@ import type { EnvCliConfig } from "../Cernere/packages/env-cli/src/types.js";
  *
  * secret 扱い ([[feedback_config_and_secrets]] — 平文保存しない):
  *   - CERNERE_SERVICE_TOKEN  : Cernere passkey export 用 admin Bearer
+ *   - OSTIARIUS_KIOSK_TOKEN  : kiosk 管理 API 用共有トークン
  *   - OSTIARIUS_PRIVATE_KEY   : Ed25519 秘密鍵 (PKCS#8 PEM)。 本番はこれを inject し
  *                               平文ファイル (OSTIARIUS_KEY_PATH) を置かない
  *   - AEDILIS_ADMIN_TOKEN     : 公開鍵 自己登録の admin Bearer
@@ -29,11 +30,14 @@ const config: EnvCliConfig = {
 
     // ─── Cernere 認証 (passkey export の取得元) ───────────────
     CERNERE_BASE_URL: "",
+    CERNERE_FRONTEND_URL: "",
     // CERNERE_SERVICE_TOKEN は secret — Infisical のみ (default を置かない)
 
     // ─── WebAuthn (Cernere と同 eTLD+1) ──────────────────────
     OSTIARIUS_RP_ID: "",
     OSTIARIUS_PWA_ORIGIN: "",
+    OSTIARIUS_LEGACY_METHODS: "",
+    // OSTIARIUS_KIOSK_TOKEN は secret — Infisical のみ (default を置かない)
 
     // ─── 公開鍵 自己登録先 (#167) ─────────────────────────────
     // 両方そろうと起動時に Aedilis へ自己登録、 無ければ手動 provision。
@@ -65,6 +69,7 @@ const config: EnvCliConfig = {
       "CERNERE_SERVICE_TOKEN",
       "OSTIARIUS_RP_ID",
       "OSTIARIUS_PWA_ORIGIN",
+      "OSTIARIUS_KIOSK_TOKEN",
       // 本番は秘密鍵を inject (平文ファイルを使わない)
       "OSTIARIUS_PRIVATE_KEY",
     ],

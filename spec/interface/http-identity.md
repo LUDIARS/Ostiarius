@@ -1,9 +1,11 @@
 # interface: `/identity/*` HTTP エンドポイント (本人確認ゲート)
 
 [http-checkin.md](http-checkin.md) に追加する接点。listen / CORS は同じ。
-`/kiosk` `/enroll` の画面と `/identity/*` は **同一ホストのブラウザ** から使う前提だが、
-LAN 内の他端末から叩かれないよう `X-Ostiarius-Kiosk: {OSTIARIUS_KIOSK_TOKEN}` ヘッダを要求する
-(生徒端末が使うのは従来の `/checkin/*` PWA 経路のみ)。
+`/kiosk` とセッション管理・登録 QR は **同一ホストのブラウザ** から使う前提で、
+LAN 内の他端末から叩かれないよう `X-Ostiarius-Kiosk: {OSTIARIUS_KIOSK_TOKEN}` ヘッダ、
+または `/kiosk` で交換した短命 HttpOnly cookie を要求する。共有 token は QR・HTML・内部 URL
+には載せない。生徒端末が assertion を返す `/identity/passkey/begin|finish` だけは WebAuthn
+assertion 自体を認証境界とする公開 API で、kiosk token を要求しない。
 
 ## セッション
 
@@ -36,6 +38,7 @@ LAN 内の他端末から叩かれないよう `X-Ostiarius-Kiosk: {OSTIARIUS_KI
 ### `POST /identity/passkey/begin` / `POST /identity/passkey/finish`
 - 既存 `/checkin/begin|finish` と同一仕様 ([http-checkin.md](http-checkin.md))。差分:
   - begin req: `{ sessionId? }` — kiosk セッションに紐づける (任意)。生徒端末 PWA からは省略可。
+  - 指定した `sessionId` が無い/失効済みなら 410。通常チェックインとして黙って続行しない。
   - finish res: `{ ok, attestation, method: 'passkey', assurance: 'medium' }`
   - 紐づいたセッションがあれば `state=issued` に遷移。
 

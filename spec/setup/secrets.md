@@ -12,7 +12,7 @@ Bibliotheca と同パターン。
 | `OSTIARIUS_PRIVATE_KEY` | Ed25519 秘密鍵 (PKCS#8 PEM)。本番はこれを inject | Infisical |
 | `AEDILIS_ADMIN_TOKEN` | 公開鍵 自己登録の admin Bearer | Infisical |
 | `CLOUDFLARE_DNS_API_TOKEN` | ACME DNS-01 の TXT 操作 (CLI 専用) | Infisical |
-| `OSTIARIUS_KIOSK_TOKEN` | kiosk / enroll 画面と `/identity/*` の共有トークン | Infisical |
+| `OSTIARIUS_KIOSK_TOKEN` | kiosk / enroll 画面、session 管理、登録 QR の共有トークン | Infisical |
 | `OSTIARIUS_TEMPLATE_KEY` | 顔テンプレートキャッシュの AES-256-GCM 鍵 (32byte base64)。Cernere export の施設配布鍵と同一 | Infisical |
 | `AEDILIS_GATEWAY_TOKEN` | kiosk 直接送信 (`/api/checkin/gateway-verify`) の Bearer (P3〜) | Infisical |
 
@@ -24,7 +24,8 @@ Bibliotheca と同パターン。
 - `defaultSiteUrl: "https://infisical.vtn-game.com"`、`defaultEnvironment: "dev"`。
 - `required.production`: `OSTIARIUS_LAN_ID` / `OSTIARIUS_FACILITY_ID` / `CERNERE_BASE_URL`
   / `CERNERE_SERVICE_TOKEN` / `OSTIARIUS_RP_ID` / `OSTIARIUS_PWA_ORIGIN` /
-  `OSTIARIUS_PRIVATE_KEY` (本番は秘密鍵を inject、平文ファイルを使わない)。
+  `OSTIARIUS_KIOSK_TOKEN` / `OSTIARIUS_PRIVATE_KEY`
+  (本番は秘密鍵を inject、平文ファイルを使わない)。
 
 ## 取得 / inject
 

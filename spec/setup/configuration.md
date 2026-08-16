@@ -32,7 +32,7 @@ env-cli (Infisical) 設定は `env-cli.config.ts`。
 | `OSTIARIUS_DATA` | data ディレクトリ | `./data` (server 親基準) | |
 | `OSTIARIUS_SYNC_INTERVAL_MS` | passkey 同期間隔 | `900000` (15min) | |
 | `OSTIARIUS_CHALLENGE_TTL_MS` | challenge TTL | `120000` (2min) | |
-| `OSTIARIUS_KIOSK_TOKEN` | kiosk / enroll 画面と `/identity/*` を開く共有トークン (**secret**) | — | **必須** (P1〜) |
+| `OSTIARIUS_KIOSK_TOKEN` | kiosk / enroll 画面、session 管理、登録 QR を開く共有トークン (**secret**) | — | **必須** (P1〜) |
 | `OSTIARIUS_LEGACY_METHODS` | 有効化する互換 method (CSV: `session,password`) | `''` (無効) | |
 | `OSTIARIUS_STAFF_ROLES` | 職員 override を許す Cernere ロール (CSV) | `staff,teacher,admin` | |
 | `OSTIARIUS_STAFF_USER_IDS` | export に `roles` が無い間の職員 userId (CSV、暫定) | `''` | |

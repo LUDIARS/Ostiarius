@@ -35,8 +35,34 @@ export function openDb(dbPath: string): Database.Database {
       synced_at     INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS credentials_user ON credentials(user_id);
+    CREATE TABLE IF NOT EXISTS verification_events (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      at           INTEGER NOT NULL,
+      kind         TEXT NOT NULL,
+      method       TEXT,
+      outcome      TEXT NOT NULL,
+      subject_user TEXT,
+      actor_user   TEXT,
+      session_id   TEXT,
+      top1_score   REAL,
+      liveness     REAL,
+      reason       TEXT,
+      sent_at      INTEGER
+    );
+    CREATE INDEX IF NOT EXISTS verification_events_at ON verification_events(at);
   `);
   return db;
+}
+
+/** 発行済み本人確認の画像を含まない監査イベントを残す。 */
+export function recordVerificationIssued(
+  db: Database.Database,
+  args: { method: 'passkey' | 'session' | 'password'; subjectUser: string; sessionId?: string },
+): void {
+  db.prepare(
+    `INSERT INTO verification_events (at, kind, method, outcome, subject_user, session_id)
+     VALUES (?, 'verify', ?, 'issued', ?, ?)`,
+  ).run(Date.now(), args.method, args.subjectUser, args.sessionId ?? null);
 }
 
 /** Cernere export 1 件を upsert。 counter は後退させない (best-effort、 clone 警戒)。 */

@@ -44,7 +44,9 @@ assertion を検証する。
 | `server/attestation-key.ts` | Ed25519 鍵の load/create (永続) |
 | `server/attestation.ts` | attestation の sign/verify (CONTRACTS §1 と同形式) |
 | `server/challenge-store.ts` | challenge の TTL 2min in-memory ストア |
-| `server/routes/checkin.ts` | `/checkin/begin` `/checkin/finish` `/gateway-public-key` |
+| `server/passkey-checkin.ts` | `/checkin/*` と `/identity/passkey/*` 共通の WebAuthn 検証 |
+| `server/kiosk-authorization.ts` | kiosk 共有トークンを短命 HttpOnly session に交換する認可境界 |
+| `server/routes/identity.ts` | kiosk session / passkey 別名 / 登録QR |
 
 ## config (env)
 
@@ -57,6 +59,8 @@ assertion を検証する。
 | `CERNERE_SERVICE_TOKEN` | export 用 admin/service Bearer | **必須** |
 | `OSTIARIUS_RP_ID` | WebAuthn rpID (Cernere と同 eTLD+1) | **必須** |
 | `OSTIARIUS_PWA_ORIGIN` | CORS 許可 + expectedOrigin の PWA origin | **必須** |
+| `CERNERE_FRONTEND_URL` | パスキー登録QRの Cernere frontend origin | `CERNERE_BASE_URL` |
+| `OSTIARIUS_KIOSK_TOKEN` | `/kiosk` の共有トークン | **必須** |
 | `OSTIARIUS_PRIVATE_KEY` | Ed25519 秘密鍵 (PKCS#8 PEM)。**本番は Infisical 経由で inject** (secret) | _(空)_ |
 | `OSTIARIUS_KEY_PATH` | Ed25519 秘密鍵の **dev 用** 永続ファイル (env 未設定時のみ。無ければ生成) | `data/gateway.key` |
 | `AEDILIS_BASE_URL` | 公開鍵 自己登録先の Aedilis base URL (#167) | _(空=手動)_ |
@@ -66,7 +70,7 @@ assertion を検証する。
 | `OSTIARIUS_SYNC_INTERVAL_MS` | passkey 同期間隔 | `900000` (15min) |
 | `OSTIARIUS_CHALLENGE_TTL_MS` | challenge TTL | `120000` (2min) |
 
-> **secret の供給**: `CERNERE_SERVICE_TOKEN` / `OSTIARIUS_PRIVATE_KEY` /
+> **secret の供給**: `CERNERE_SERVICE_TOKEN` / `OSTIARIUS_KIOSK_TOKEN` / `OSTIARIUS_PRIVATE_KEY` /
 > `AEDILIS_ADMIN_TOKEN` は平文保存しない方針 ([[feedback_config_and_secrets]])。
 > `env-cli.config.ts` に Infisical 設定を定義済み — `npx env-cli` で取得・inject する
 > (Aedilis / Memoria / Cernere と同パターン)。
@@ -82,9 +86,12 @@ assertion を検証する。
   `allowCredentials` に詰め、challenge を TTL 2min で保存。返り = options。
 - `POST /checkin/finish` body `{ response }` → assertion を同期済み公開鍵で検証
   → OK なら credentialId から userId を引き、attestation を署名して
-  `{ ok, attestation }` を返す。
+  `{ ok, attestation, method: 'passkey', assurance: 'medium' }` を返す。
+- `POST /identity/passkey/begin|finish` は kiosk session にも接続する同一の検証経路。
+- kiosk の session 管理と `GET /identity/passkey/register-hint` は `X-Ostiarius-Kiosk`
+  または `/kiosk` が発行した短命 HttpOnly cookie を要求する。
 - `GET /gateway-public-key` → `{ lanId, facilityId, publicKeyPem }` (初回 provision 用)。
-- `GET /api/health` → `{ ok, service, lanId, facilityId, credentials }`。
+- `GET /api/health` → `{ ok, service, lanId, facilityId, credentials, methods }`。
 
 ## 起動手順
 

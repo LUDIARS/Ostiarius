@@ -38,7 +38,8 @@ assertion を検証し、OK なら attestation を署名して返す。
   `signature` を含む WebAuthn assertion JSON)。
 - res 200: `{ ok: true, attestation: string }`
   - `attestation` = `base64url(payload).base64url(sig)` (Ed25519)。payload =
-    `{ sub, placeId, lanId, nonce, issuedAt }` ([feature/checkin-verification.md](../feature/checkin-verification.md))。
+    `{ sub, placeId, lanId, nonce, issuedAt, method: 'passkey', assurance: 'medium' }`。
+    既存5フィールドだけの署名済み payload も検証時は読める。
 - エラー:
   | status | body | 条件 |
   |---|---|---|
@@ -46,7 +47,7 @@ assertion を検証し、OK なら attestation を署名して返す。
   | 400 | `{ error: 'bad_request', code: 'clientDataJSON invalid' }` | clientDataJSON が parse 不能 |
   | 400 | `{ error: 'challenge_expired', code: 'challenge missing/expired' }` | challenge 未保存/失効/replay |
   | 401 | `{ error: 'unknown_credential', code: 'passkey 未登録/未同期' }` | credential が DB に無い |
-  | 401 | `{ error: 'assertion_failed', message? }` | 署名/origin/rpID 検証失敗 |
+  | 401 | `{ error: 'assertion_failed' }` | 署名/origin/rpID 検証失敗 (検証器の内部詳細は返さない) |
 
 ## `POST /checkin/session` (互換経路、既定無効)
 
@@ -66,11 +67,13 @@ assertion を検証し、OK なら attestation を署名して返す。
 
 ## `GET /api/health`
 
-- res 200: `{ ok: true, service: 'ostiarius', lanId, facilityId, credentials }`
+- res 200: `{ ok: true, service: 'ostiarius', lanId, facilityId, credentials, methods }`
   - `credentials` = `countCredentials(db)` (キャッシュ件数)。
+  - `methods` = `['passkey', ...有効化済みの session/password]`。
 
 ## 関連
 
 - 機能詳細: [feature/checkin-verification.md](../feature/checkin-verification.md)
 - 本人確認ゲート (`/identity/*`、`method` / `assurance` 付き attestation): [interface/http-identity.md](./http-identity.md)
+- `POST /identity/passkey/begin|finish` は上記 `/checkin/begin|finish` と同じ WebAuthn 検証を共有する。
 - env (port / origin / rpId): [setup/configuration.md](../setup/configuration.md)
