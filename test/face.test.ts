@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { openDb, decryptFaceTemplate, encryptFaceTemplate, enqueueOutbox, listDueOutbox, upsertFaceTemplate } from '../server/db.ts';
+import { countStaffOverridesSince, openDb, decryptFaceTemplate, encryptFaceTemplate, enqueueOutbox, listDueOutbox, recordFaceEvent, upsertFaceTemplate } from '../server/db.ts';
 import { ConsecutiveFaceVote, findFaceMatch } from '../server/face/matcher.ts';
 import { advanceChallenge, isChallengeComplete } from '../server/face/challenge.ts';
 import { syncFaceTemplates } from '../server/face/template-sync.ts';
@@ -22,6 +22,14 @@ describe('face domain', () => {
     const key = Buffer.alloc(32, 1); const value = new Float32Array(512); value[7] = .25;
     expect(decryptFaceTemplate(encryptFaceTemplate(value, key), key)[7]).toBeCloseTo(.25);
     const db = openDb(':memory:'); enqueueOutbox(db, 'aedilis:attest', '{}'); expect(listDueOutbox(db)).toHaveLength(1);
+  });
+  it('counts staff overrides separately for each staff member', () => {
+    const db = openDb(':memory:');
+    recordFaceEvent(db, { kind: 'staff_override', outcome: 'issued', actorUser: 'staff-a' });
+    recordFaceEvent(db, { kind: 'staff_override', outcome: 'issued', actorUser: 'staff-b' });
+    const startOfDay = new Date(); startOfDay.setUTCHours(0, 0, 0, 0);
+    expect(countStaffOverridesSince(db, 'staff-a', startOfDay.getTime())).toBe(1);
+    expect(countStaffOverridesSince(db, 'staff-b', startOfDay.getTime())).toBe(1);
   });
   it('applies a Cernere snapshot and removes tombstoned templates', async () => {
     const db = openDb(':memory:'); const key = Buffer.alloc(32, 3);

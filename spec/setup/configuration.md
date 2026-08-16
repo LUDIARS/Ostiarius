@@ -34,9 +34,9 @@ env-cli (Infisical) 設定は `env-cli.config.ts`。
 | `OSTIARIUS_CHALLENGE_TTL_MS` | challenge TTL | `120000` (2min) | |
 | `OSTIARIUS_KIOSK_TOKEN` | kiosk / enroll 画面、session 管理、登録 QR を開く共有トークン (**secret**) | — | **必須** (P1〜) |
 | `OSTIARIUS_LEGACY_METHODS` | 有効化する互換 method (CSV: `session,password`) | `''` (無効) | |
-| `OSTIARIUS_STAFF_ROLES` | 職員 override を許す Cernere ロール (CSV) | `staff,teacher,admin` | |
+| `OSTIARIUS_STAFF_ROLES` | 職員 override を許す Cernere ロール (CSV) | `staff,admin` | |
 | `OSTIARIUS_STAFF_USER_IDS` | export に `roles` が無い間の職員 userId (CSV、暫定) | `''` | |
-| `OSTIARIUS_STAFF_OVERRIDE_DAILY_MAX` | 職員 1 人あたり override 日次上限 | `20` | |
+| `OSTIARIUS_STAFF_OVERRIDE_DAILY_LIMIT` | 職員 1 人あたりの override 日次上限 | `20` | |
 | `OSTIARIUS_FACE_SIDECAR_URL` | face-sidecar ベース URL (localhost 固定推奨) | `http://127.0.0.1:17591` | 顔有効時 |
 | `OSTIARIUS_TEMPLATE_KEY` | 顔テンプレートキャッシュ暗号鍵 32byte base64 (**secret**) | — | 顔有効時 **必須** |
 | `OSTIARIUS_FACE_MATCH_THRESHOLD` | 1:N 受理 cos 類似度 (glintr100) | `0.62` | |

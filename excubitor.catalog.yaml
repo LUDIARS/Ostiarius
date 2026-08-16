@@ -13,7 +13,10 @@ services:
     repo: LUDIARS/Ostiarius
     runtime: python
     cwd: ${ARS_ROOT}/Ostiarius/face-sidecar
+    # 実機手順 (venv / fetch-models / pytest) は docs/E2E-identity.md §A-2。モデル置き場は FACE_SIDECAR_MODELS_DIR (既定 face-sidecar/models)。
     command: uvicorn face_sidecar.app:app --host 127.0.0.1 --port ${port}
+    env:
+      FACE_SIDECAR_MODELS_DIR: ${ARS_ROOT}/Ostiarius/face-sidecar/models
     autostart: false
     health:
       type: http
@@ -31,6 +34,7 @@ services:
     cwd: ${ARS_ROOT}/Ostiarius
     command: npm run dev
     allow_hot_reload: true
+    # face-sidecar は任意依存 (無くても起動し、/api/health の sidecar.ok=false で顔経路を fallback 表示)
     depends_on: [cernere]
     autostart: false
     env:
@@ -41,12 +45,15 @@ services:
       - CERNERE_BASE_URL
       - OSTIARIUS_RP_ID
       - OSTIARIUS_PWA_ORIGIN
+      # 本人確認ゲート (P1/P2): kiosk 共有トークンと顔テンプレート暗号鍵は起動必須 (config.ts requireEnv)
+      - OSTIARIUS_KIOSK_TOKEN
+      - OSTIARIUS_TEMPLATE_KEY
     infisical:
       project_id: 19c9e77d-646c-4a0e-a091-b494234953ea
       environment: dev
       inject: true
       # TLS_MODEは未設定時off。証明書3値と同時にrequiredをInfisicalへ投入して切り替える。
-      include: [OSTIARIUS_LAN_ID, OSTIARIUS_FACILITY_ID, OSTIARIUS_RP_ID, OSTIARIUS_PWA_ORIGIN, OSTIARIUS_LABEL, OSTIARIUS_TLS_MODE, OSTIARIUS_LAN_HOSTNAME, OSTIARIUS_TLS_CERTIFICATE_PEM, OSTIARIUS_TLS_PRIVATE_KEY_PEM]
+      include: [OSTIARIUS_LAN_ID, OSTIARIUS_FACILITY_ID, OSTIARIUS_RP_ID, OSTIARIUS_PWA_ORIGIN, OSTIARIUS_LABEL, OSTIARIUS_TLS_MODE, OSTIARIUS_LAN_HOSTNAME, OSTIARIUS_TLS_CERTIFICATE_PEM, OSTIARIUS_TLS_PRIVATE_KEY_PEM, OSTIARIUS_KIOSK_TOKEN, OSTIARIUS_TEMPLATE_KEY, AEDILIS_GATEWAY_TOKEN, CERNERE_FRONTEND_URL, OSTIARIUS_FACE_SIDECAR_URL, OSTIARIUS_FACE_MATCH_THRESHOLD, OSTIARIUS_FACE_MARGIN, OSTIARIUS_LIVENESS_THRESHOLD, OSTIARIUS_FACE_CHALLENGE, OSTIARIUS_FACE_TEMPLATE_SOURCE, OSTIARIUS_STAFF_ROLES]
     requires_secret:
       - service: cernere
         keys: [EXCUBITOR_CERNERE_CLIENT_ID, EXCUBITOR_CERNERE_CLIENT_SECRET]

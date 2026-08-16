@@ -6,3 +6,5 @@ node_modules/
 .env
 .env.secrets
 *.log
+face-sidecar/models/
+__pycache__/

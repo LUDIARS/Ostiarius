@@ -222,4 +222,28 @@ def create_app(analyzer: Analyzer | None = None) -> FastAPI:
         return {"embeddings": embeddings, "qualities": qualities}
     return app
 
-app = create_app()
+
+REQUIRED_MODEL_FILES = ("scrfd_10g_bnkps.onnx", "glintr100.onnx", "MiniFASNetV2.onnx", "face_landmarker.task")
+
+
+def default_models_dir() -> str:
+    """FACE_SIDECAR_MODELS_DIR (Excubitor catalog) or <package>/../models (fetch-models.py の既定出力先)。"""
+    import os
+    from pathlib import Path
+    return os.environ.get("FACE_SIDECAR_MODELS_DIR") or str(Path(__file__).resolve().parents[1] / "models")
+
+
+def load_default_analyzer(model_dir: str | None = None) -> Analyzer:
+    """モデル一式が揃っていれば OnnxAnalyzer、無ければ UnavailableAnalyzer (health ok=false、/v1/analyze 503)。
+    起動を止めないのは Ostiarius が sidecar.ok=false で顔経路を fallback 表示に切り替える設計のため。"""
+    import sys
+    from pathlib import Path
+    directory = Path(model_dir or default_models_dir())
+    missing = [name for name in REQUIRED_MODEL_FILES if not (directory / name).is_file()]
+    if missing:
+        print(f"[face-sidecar] models unavailable in {directory}: missing {', '.join(missing)} (run scripts/fetch-models.py)", file=sys.stderr)
+        return UnavailableAnalyzer()
+    return OnnxAnalyzer(str(directory))
+
+
+app = create_app(load_default_analyzer())

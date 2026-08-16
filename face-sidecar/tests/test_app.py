@@ -53,3 +53,15 @@ def test_quality_gate_omits_embedding_for_small_face() -> None:
     face = response.json()['faces'][0]
     assert face['quality']['pass'] is False
     assert 'embedding' not in face
+
+
+def test_load_default_analyzer_falls_back_when_models_missing(tmp_path, monkeypatch):
+    from face_sidecar.app import UnavailableAnalyzer, load_default_analyzer
+
+    monkeypatch.setenv("FACE_SIDECAR_MODELS_DIR", str(tmp_path))
+    analyzer = load_default_analyzer()
+    assert isinstance(analyzer, UnavailableAnalyzer)
+    client = TestClient(create_app(analyzer))
+    assert client.get("/v1/health").json()["ok"] is False
+    response = client.post("/v1/analyze", files={"image": ("f.jpg", image_bytes(), "image/jpeg")})
+    assert response.status_code == 503

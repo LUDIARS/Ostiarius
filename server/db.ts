@@ -55,6 +55,8 @@ export function openDb(dbPath: string): Database.Database {
       sent_at      INTEGER
     );
     CREATE INDEX IF NOT EXISTS verification_events_at ON verification_events(at);
+    CREATE INDEX IF NOT EXISTS verification_events_staff_override_daily
+      ON verification_events(kind, actor_user, at);
     CREATE TABLE IF NOT EXISTS face_templates (
       user_id TEXT PRIMARY KEY, template_enc BLOB NOT NULL, model_id TEXT NOT NULL,
       quality REAL NOT NULL DEFAULT 0, enrolled_at INTEGER NOT NULL, version INTEGER NOT NULL, synced_at INTEGER NOT NULL
@@ -98,8 +100,10 @@ export function recordFaceEvent(db: Database.Database, event: { outcome: string;
   db.prepare('INSERT INTO verification_events (at,kind,method,outcome,subject_user,actor_user,session_id,top1_score,liveness,reason) VALUES (?,?,?,?,?,?,?,?,?,?)').run(Date.now(), event.kind ?? 'verify', event.method ?? null, event.outcome, event.outcome === 'issued' ? event.subjectUser ?? null : null, event.actorUser ?? null, event.sessionId ?? null, event.score ?? null, event.liveness ?? null, event.reason ?? null);
 }
 
-export function countStaffOverridesSince(db: Database.Database, since: number): number {
-  return db.prepare<[string, number], { n: number }>('SELECT COUNT(*) AS n FROM verification_events WHERE kind = ? AND at >= ?').get('staff_override', since)?.n ?? 0;
+export function countStaffOverridesSince(db: Database.Database, actorUser: string, since: number): number {
+  return db.prepare<[string, string, number], { n: number }>(
+    'SELECT COUNT(*) AS n FROM verification_events WHERE kind = ? AND actor_user = ? AND at >= ?',
+  ).get('staff_override', actorUser, since)?.n ?? 0;
 }
 export function rotateFaceEvents(db: Database.Database, retentionDays: number): void {
   db.prepare('DELETE FROM verification_events WHERE at < ?').run(Date.now() - retentionDays * 86_400_000);

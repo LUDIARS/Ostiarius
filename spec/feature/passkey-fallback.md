@@ -44,7 +44,7 @@ RP ID / origin の制約 (Cernere と同一 eTLD+1) は従来通り ([../interfa
 - 対象生徒 (Cernere user id を名簿検索で選択) と **理由 (必須、選択式 + 自由記述)** を入力。
 - attestation `method=staff_override` / `assurance=manual`、payload `sub` は生徒、
   `verification_events` に職員 userId と理由を記録。Aedilis へは通常送信 + 日次件数を通知。
-- 1 職員あたり日次上限 (`OSTIARIUS_STAFF_OVERRIDE_DAILY_MAX`、既定 20)。
+- 1 職員あたり日次上限 (`OSTIARIUS_STAFF_OVERRIDE_DAILY_LIMIT`、既定 20)。
 
 Cernere export に `roles` を含めることは P3 で追加 ([../interface/cernere-passkey-export.md](../interface/cernere-passkey-export.md) 改定)。
 それまでは `OSTIARIUS_STAFF_USER_IDS` (CSV) で暫定指定。

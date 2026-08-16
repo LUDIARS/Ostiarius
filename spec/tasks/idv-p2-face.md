@@ -37,8 +37,8 @@ kiosk のカメラで 1:N 顔照合 + 生体性確認を行い attestation を�
 - [x] `verification_events` 記録 (失敗行に user を入れない)、90 日ローテート。ログに画像/テンプレート/氏名を出さない test。
 - [x] `/api/health` に `faceTemplates` / `sidecar` / `outbox`。
 - [x] vitest: matcher (閾値・margin・投票)、チャレンジ判定、state machine、テンプレート暗号化 round-trip、sync tombstone、outbox 再送。sidecar はモック。
-- [ ] `npm run typecheck` / `npm test` / sidecar pytest 成功。1 PR (Ostiarius) + Excubitor catalog 断片。
-  - 注: sidecar pytest はこの Windows ホストで python.exe が起動できず (ログオンセッション不在) 未実行。P4 実機環境 (venv + モデル取得後) で実行する。typecheck / vitest (64 tests) は作者報告で成功、本PRレビューでは未実行。
+- [x] `npm run typecheck` / `npm test` / sidecar pytest 成功。1 PR (Ostiarius) + Excubitor catalog 断片。
+  - sidecar pytest は WSL venv (uv、Python 3.12) で 4 passed (2026-08-17、chore/idv-p4-prep)。Windows 側 python.exe はログオンセッション不在で起動不可のため実機/WSL で回す (docs/E2E-identity.md §A-2)。typecheck / vitest 64 tests は #639 審査で成功。
 
 ## スコープ外
 - Cernere / Aedilis 側 API (P3)。実機閾値調整 (P4)。

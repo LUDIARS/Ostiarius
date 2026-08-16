@@ -53,6 +53,20 @@ const config: EnvCliConfig = {
     OSTIARIUS_DATA: "",
     OSTIARIUS_SYNC_INTERVAL_MS: "900000",
     OSTIARIUS_CHALLENGE_TTL_MS: "120000",
+
+    // ─── 顔認証 (spec/feature/identity-verification.md §8) ───────
+    // OSTIARIUS_TEMPLATE_KEY は secret — Infisical のみ (32byte base64、Cernere の
+    // FACE_TEMPLATE_DISTRIBUTION_KEYS[facilityId] と同一値)。顔有効時は起動必須。
+    OSTIARIUS_FACE_SIDECAR_URL: "http://127.0.0.1:17591",
+    OSTIARIUS_FACE_MATCH_THRESHOLD: "0.62",
+    OSTIARIUS_FACE_MARGIN: "0.08",
+    OSTIARIUS_LIVENESS_THRESHOLD: "0.90",
+    OSTIARIUS_FACE_CHALLENGE: "required",
+    OSTIARIUS_FACE_TEMPLATE_SOURCE: "cernere",
+    OSTIARIUS_STAFF_ROLES: "staff,admin",
+    OSTIARIUS_STAFF_OVERRIDE_DAILY_LIMIT: "20",
+    OSTIARIUS_EVENT_RETENTION_DAYS: "90",
+    // AEDILIS_GATEWAY_TOKEN は secret — Infisical のみ (Aedilis /admin/gateways 登録時に払い出し)
   },
 
   secretsPath: ".env.secrets",
@@ -70,6 +84,8 @@ const config: EnvCliConfig = {
       "OSTIARIUS_RP_ID",
       "OSTIARIUS_PWA_ORIGIN",
       "OSTIARIUS_KIOSK_TOKEN",
+      // 顔テンプレートキャッシュの暗号鍵 (config.ts で requireEnv)
+      "OSTIARIUS_TEMPLATE_KEY",
       // 本番は秘密鍵を inject (平文ファイルを使わない)
       "OSTIARIUS_PRIVATE_KEY",
     ],
