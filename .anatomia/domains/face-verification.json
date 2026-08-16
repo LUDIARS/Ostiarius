@@ -1,0 +1,7 @@
+{
+  "name": "face-verification",
+  "description": "顔テンプレートの暗号化キャッシュ、1:N照合、生体チャレンジ、ローカル推論sidecarと出席attestation送信を分離する本人確認ドメイン。",
+  "source": "spec-draft",
+  "specRefs": ["feature: 顔認証 + 生体性確認", "feature: 顔テンプレート登録"],
+  "rationale": "生体情報を画像として永続化せず、照合・送信・外部連携を明確な境界で扱うため。"
+}

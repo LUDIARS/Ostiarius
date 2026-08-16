@@ -49,6 +49,10 @@ function parseChallenge(response: AuthenticationResponseJSON): string | null {
   }
 }
 
+function isCanonicalBase64Url(value: string): boolean {
+  return /^[A-Za-z0-9_-]+$/.test(value) && Buffer.from(value, 'base64url').toString('base64url') === value;
+}
+
 function updateCounter(
   db: Database.Database,
   credential: CredentialRow,
@@ -72,6 +76,7 @@ export class PasskeyCheckinService {
   constructor(
     private readonly deps: PasskeyCheckinDeps,
     private readonly onIssued?: (sessionId: string) => void,
+    private readonly onVerified?: (userId: string) => void,
   ) {}
 
   async begin(c: Context, sessionId?: string): Promise<Response> {
@@ -101,6 +106,9 @@ export class PasskeyCheckinService {
     const response = body?.response;
     if (!response || typeof response.id !== 'string') {
       return c.json({ error: 'bad_request', code: 'response required' }, 400);
+    }
+    if (!isCanonicalBase64Url(response.response.signature)) {
+      return c.json({ error: 'assertion_failed' }, 401);
     }
     const credential = getCredential(this.deps.db, response.id);
     if (!credential) {
@@ -155,6 +163,7 @@ export class PasskeyCheckinService {
       sessionId,
     });
     if (sessionId) this.onIssued?.(sessionId);
+    this.onVerified?.(credential.user_id);
     return c.json({ ok: true, attestation, method: 'passkey', assurance: 'medium' });
   }
 

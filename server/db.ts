@@ -10,6 +10,7 @@
 import Database from 'better-sqlite3';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 
 export interface CredentialRow {
   user_id: string;
@@ -18,7 +19,11 @@ export interface CredentialRow {
   counter: number;
   transports: string; // JSON 配列 (AuthenticatorTransportFuture[])
   synced_at: number;
+  roles: string;
 }
+
+export interface FaceTemplateRow { user_id: string; template_enc: Buffer; model_id: string; quality: number; enrolled_at: number; version: number; synced_at: number; }
+export interface OutboxRow { id: number; target: string; payload: string; attempts: number; next_at: number; }
 
 export function openDb(dbPath: string): Database.Database {
   mkdirSync(dirname(dbPath), { recursive: true });
@@ -50,9 +55,63 @@ export function openDb(dbPath: string): Database.Database {
       sent_at      INTEGER
     );
     CREATE INDEX IF NOT EXISTS verification_events_at ON verification_events(at);
+    CREATE TABLE IF NOT EXISTS face_templates (
+      user_id TEXT PRIMARY KEY, template_enc BLOB NOT NULL, model_id TEXT NOT NULL,
+      quality REAL NOT NULL DEFAULT 0, enrolled_at INTEGER NOT NULL, version INTEGER NOT NULL, synced_at INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS outbox (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, target TEXT NOT NULL, payload TEXT NOT NULL,
+      created_at INTEGER NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, next_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS outbox_next_at ON outbox(next_at);
   `);
+  const columns = db.prepare<[], { name: string }>('PRAGMA table_info(credentials)').all();
+  if (!columns.some((column) => column.name === 'roles')) db.exec("ALTER TABLE credentials ADD COLUMN roles TEXT NOT NULL DEFAULT '[]'");
   return db;
 }
+
+export function encryptFaceTemplate(template: Float32Array, key: Buffer): Buffer {
+  if (key.length !== 32) throw new Error('OSTIARIUS_TEMPLATE_KEY must decode to 32 bytes');
+  const nonce = randomBytes(12);
+  const cipher = createCipheriv('aes-256-gcm', key, nonce);
+  const plain = Buffer.from(template.buffer, template.byteOffset, template.byteLength);
+  return Buffer.concat([nonce, cipher.update(plain), cipher.final(), cipher.getAuthTag()]);
+}
+
+export function decryptFaceTemplate(value: Buffer, key: Buffer): Float32Array {
+  if (key.length !== 32 || value.length < 29) throw new Error('invalid encrypted face template');
+  const decipher = createDecipheriv('aes-256-gcm', key, value.subarray(0, 12));
+  decipher.setAuthTag(value.subarray(value.length - 16));
+  const plain = Buffer.concat([decipher.update(value.subarray(12, -16)), decipher.final()]);
+  if (plain.length !== 512 * 4) throw new Error('face template dimension mismatch');
+  return new Float32Array(plain.buffer, plain.byteOffset, 512).slice();
+}
+
+export function upsertFaceTemplate(db: Database.Database, row: { userId: string; template: Float32Array; modelId: string; quality: number; enrolledAt: number; version: number; key: Buffer }): void {
+  db.prepare(`INSERT INTO face_templates (user_id,template_enc,model_id,quality,enrolled_at,version,synced_at) VALUES (?,?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET template_enc=excluded.template_enc,model_id=excluded.model_id,quality=excluded.quality,enrolled_at=excluded.enrolled_at,version=excluded.version,synced_at=excluded.synced_at`)
+    .run(row.userId, encryptFaceTemplate(row.template, row.key), row.modelId, row.quality, row.enrolledAt, row.version, Date.now());
+}
+export function listFaceTemplates(db: Database.Database): FaceTemplateRow[] { return db.prepare<[], FaceTemplateRow>('SELECT * FROM face_templates ORDER BY user_id').all(); }
+export function deleteFaceTemplate(db: Database.Database, userId: string): void { db.prepare('DELETE FROM face_templates WHERE user_id=?').run(userId); }
+export function countFaceTemplates(db: Database.Database): number { return (db.prepare<[], { n: number }>('SELECT COUNT(*) AS n FROM face_templates').get()?.n ?? 0); }
+export function recordFaceEvent(db: Database.Database, event: { outcome: string; method?: string; subjectUser?: string; actorUser?: string; sessionId?: string; score?: number; liveness?: number; reason?: string; kind?: string }): void {
+  db.prepare('INSERT INTO verification_events (at,kind,method,outcome,subject_user,actor_user,session_id,top1_score,liveness,reason) VALUES (?,?,?,?,?,?,?,?,?,?)').run(Date.now(), event.kind ?? 'verify', event.method ?? null, event.outcome, event.outcome === 'issued' ? event.subjectUser ?? null : null, event.actorUser ?? null, event.sessionId ?? null, event.score ?? null, event.liveness ?? null, event.reason ?? null);
+}
+
+export function countStaffOverridesSince(db: Database.Database, since: number): number {
+  return db.prepare<[string, number], { n: number }>('SELECT COUNT(*) AS n FROM verification_events WHERE kind = ? AND at >= ?').get('staff_override', since)?.n ?? 0;
+}
+export function rotateFaceEvents(db: Database.Database, retentionDays: number): void {
+  db.prepare('DELETE FROM verification_events WHERE at < ?').run(Date.now() - retentionDays * 86_400_000);
+}
+export function listFaceUserIds(db: Database.Database): string[] {
+  return db.prepare<[], { user_id: string }>('SELECT user_id FROM face_templates ORDER BY user_id').all().map((row) => row.user_id);
+}
+export function enqueueOutbox(db: Database.Database, target: string, payload: string): void { const now = Date.now(); db.prepare('INSERT INTO outbox (target,payload,created_at,next_at) VALUES (?,?,?,?)').run(target, payload, now, now); }
+export function listDueOutbox(db: Database.Database, now = Date.now()): OutboxRow[] { return db.prepare<[number], OutboxRow>('SELECT id,target,payload,attempts,next_at FROM outbox WHERE next_at<=? ORDER BY id').all(now); }
+export function acknowledgeOutbox(db: Database.Database, id: number): void { db.prepare('DELETE FROM outbox WHERE id=?').run(id); }
+export function deferOutbox(db: Database.Database, row: OutboxRow): void { const attempts = row.attempts + 1; const delay = Math.min(30_000 * 2 ** attempts, 900_000); db.prepare('UPDATE outbox SET attempts=?,next_at=? WHERE id=?').run(attempts, Date.now() + delay, row.id); }
+export function countOutbox(db: Database.Database): number { return db.prepare<[], { n: number }>('SELECT COUNT(*) AS n FROM outbox').get()?.n ?? 0; }
 
 /** 発行済み本人確認の画像を含まない監査イベントを残す。 */
 export function recordVerificationIssued(
@@ -74,17 +133,19 @@ export function upsertCredential(
     publicKey: string;
     counter: number;
     transports: string[];
+    roles?: string[];
   },
 ): void {
   db.prepare(
     `INSERT INTO credentials
-       (user_id, credential_id, public_key, counter, transports, synced_at)
-     VALUES (?, ?, ?, ?, ?, ?)
+       (user_id, credential_id, public_key, counter, transports, synced_at, roles)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(credential_id) DO UPDATE SET
        user_id    = excluded.user_id,
        public_key = excluded.public_key,
        counter    = MAX(credentials.counter, excluded.counter),
        transports = excluded.transports,
+       roles      = excluded.roles,
        synced_at  = excluded.synced_at`,
   ).run(
     args.userId,
@@ -93,6 +154,7 @@ export function upsertCredential(
     args.counter,
     JSON.stringify(args.transports),
     Date.now(),
+    JSON.stringify(args.roles ?? []),
   );
 }
 

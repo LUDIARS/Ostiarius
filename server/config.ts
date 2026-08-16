@@ -80,6 +80,17 @@ export interface OstiariusConfig {
   /** OSTIARIUS_LEGACY_METHODS — 明示的に許可した旧来の本人確認経路。既定は全て無効。 */
   legacyMethods: readonly string[];
   kioskToken: string;
+  templateKey: Buffer;
+  faceSidecarUrl: string;
+  faceMatchThreshold: number;
+  faceMargin: number;
+  livenessThreshold: number;
+  faceChallengeRequired: boolean;
+  faceTemplateSource: 'cernere' | 'local';
+  aedilisGatewayToken: string;
+  staffRoles: readonly string[];
+  eventRetentionDays: number;
+  dailyOverrideLimit: number;
 }
 
 export function loadConfig(): OstiariusConfig {
@@ -123,5 +134,16 @@ export function loadConfig(): OstiariusConfig {
       .map((method) => method.trim())
       .filter(Boolean),
     kioskToken: requireEnv('OSTIARIUS_KIOSK_TOKEN'),
+    templateKey: Buffer.from(requireEnv('OSTIARIUS_TEMPLATE_KEY'), 'base64'),
+    faceSidecarUrl: optionalEnv('OSTIARIUS_FACE_SIDECAR_URL', 'http://127.0.0.1:17591').replace(/\/+$/, ''),
+    faceMatchThreshold: Number(optionalEnv('OSTIARIUS_FACE_MATCH_THRESHOLD', '0.62')),
+    faceMargin: Number(optionalEnv('OSTIARIUS_FACE_MARGIN', '0.08')),
+    livenessThreshold: Number(optionalEnv('OSTIARIUS_LIVENESS_THRESHOLD', '0.90')),
+    faceChallengeRequired: optionalEnv('OSTIARIUS_FACE_CHALLENGE', 'required') === 'required',
+    faceTemplateSource: optionalEnv('OSTIARIUS_FACE_TEMPLATE_SOURCE', 'cernere') === 'local' ? 'local' : 'cernere',
+    aedilisGatewayToken: optionalEnv('AEDILIS_GATEWAY_TOKEN', ''),
+    staffRoles: optionalEnv('OSTIARIUS_STAFF_ROLES', 'staff,admin').split(',').map((role) => role.trim()).filter(Boolean),
+    eventRetentionDays: Number(optionalEnv('OSTIARIUS_EVENT_RETENTION_DAYS', '90')),
+    dailyOverrideLimit: Number(optionalEnv('OSTIARIUS_STAFF_OVERRIDE_DAILY_LIMIT', '20')),
   };
 }

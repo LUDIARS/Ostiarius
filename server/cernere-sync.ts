@@ -17,6 +17,7 @@ interface ExportedCredential {
   publicKey: string; // base64 COSE
   counter?: number;
   transports?: string[];
+  roles?: string[];
 }
 
 interface ExportResponse {
@@ -63,6 +64,7 @@ export async function syncOnce(opts: SyncOptions): Promise<{ ok: boolean; synced
           publicKey: r.publicKey,
           counter: typeof r.counter === 'number' ? r.counter : 0,
           transports: Array.isArray(r.transports) ? r.transports : [],
+          roles: Array.isArray(r.roles) ? r.roles : [],
         });
         synced++;
       }

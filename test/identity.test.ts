@@ -153,4 +153,19 @@ describe('/identity P1 kiosk support', () => {
     );
     expect(response.status).toBe(401);
   });
+
+  it('provides the staff-passkey enrollment flow without exposing the kiosk credential', async () => {
+    const response = await app().router.request('http://ostiarius.test/kiosk', {
+      headers: KIOSK_HEADERS,
+    });
+    const html = await response.text();
+
+    expect(html).toContain('顔を登録（職員）');
+    expect(html).toContain('/identity/staff/begin');
+    expect(html).toContain('/identity/enroll/consent');
+    expect(html).toContain('/identity/enroll/frame');
+    expect(html).toContain('/identity/enroll/commit');
+    expect(html).toContain('shotsRequired = 6');
+    expect(html).not.toContain(KIOSK_TOKEN);
+  });
 });

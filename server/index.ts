@@ -18,7 +18,7 @@ import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
 
 import { loadConfig } from './config.ts';
-import { openDb, countCredentials } from './db.ts';
+import { openDb, countCredentials, countFaceTemplates, countOutbox, rotateFaceEvents } from './db.ts';
 import { loadOrCreateKeyPair } from './attestation-key.ts';
 import { startCernereSync } from './cernere-sync.ts';
 import { registerGatewayKey } from './aedilis-register.ts';
@@ -30,6 +30,16 @@ import { makeMobileCheckinRouter } from './routes/mobile-checkin.ts';
 import { makeIdentityRouter } from './routes/identity.ts';
 import { makeKioskRouter } from './routes/kiosk.ts';
 import { createVantanUserClient } from './vantan-user-client.ts';
+import { createSidecarClient } from './face/sidecar-client.ts';
+import { buildFaceRoster } from './face/template-roster.ts';
+import { FaceVerificationFlow } from './face/verification-flow.ts';
+import { makeIdentityFaceRouter } from './routes/identity-face.ts';
+import { retryOutbox } from './face/aedilis-outbox.ts';
+import { syncFaceTemplates } from './face/template-sync.ts';
+import { StaffSessionStore } from './face/staff-session.ts';
+import { EnrollmentSessionStore } from './face/enrollment-session.ts';
+import { makeIdentityStaffRouter } from './routes/identity-staff.ts';
+import { makeIdentityEnrollRouter } from './routes/identity-enroll.ts';
 
 const config = loadConfig();
 const db = openDb(config.dbPath);
@@ -40,6 +50,11 @@ const keyPair = loadOrCreateKeyPair({
   keyPath: config.keyPath,
 });
 const challenges = new ChallengeStore(config.challengeTtlMs);
+if (config.templateKey.length !== 32) throw new Error('OSTIARIUS_TEMPLATE_KEY must be a base64-encoded 32-byte key');
+const sidecar = createSidecarClient(config.faceSidecarUrl);
+const staffSessions = new StaffSessionStore();
+const enrollment = new EnrollmentSessionStore();
+const faceFlow = new FaceVerificationFlow({ db, sessions: identitySessions, sidecar, roster: () => buildFaceRoster(db, config.templateKey, 'insightface/glintr100@1'), threshold: config.faceMatchThreshold, margin: config.faceMargin, livenessThreshold: config.livenessThreshold, challengeRequired: config.faceChallengeRequired, subjectHint: (userId) => `ID / ${userId.slice(-2)}` });
 
 startCernereSync({
   db,
@@ -47,6 +62,19 @@ startCernereSync({
   serviceToken: config.cernereServiceToken,
   intervalMs: config.syncIntervalMs,
 });
+if (config.faceTemplateSource === 'cernere') {
+  const syncTemplates = (): void => {
+    void syncFaceTemplates({
+      db,
+      baseUrl: config.cernereBaseUrl,
+      serviceToken: config.cernereServiceToken,
+      facilityId: config.facilityId,
+      key: config.templateKey,
+    });
+  };
+  syncTemplates();
+  setInterval(syncTemplates, config.syncIntervalMs).unref?.();
+}
 
 // vantan_user プロフィール enrichment (モバイルチェックイン確認画面の department/grade/name 表示) は
 // 任意機能 — OSTIARIUS_CERNERE_PROJECT_CLIENT_ID/_SECRET 未設定なら createVantanUserClient が null を
@@ -70,20 +98,24 @@ app.use(
   cors({
     origin: config.pwaOrigin,
     allowMethods: ['GET', 'POST', 'OPTIONS'],
-    allowHeaders: ['content-type', 'authorization'],
+    allowHeaders: ['content-type', 'authorization', 'x-ostiarius-staff'],
   }),
 );
 
-app.get('/api/health', (c) =>
-  c.json({
+app.get('/api/health', async (c) => {
+  const sidecarHealth = await sidecar.health().catch(() => ({ ok: false, modelId: '' }));
+  return c.json({
     ok: true,
     service: 'ostiarius',
     lanId: config.lanId,
     facilityId: config.facilityId,
     credentials: countCredentials(db),
+    faceTemplates: countFaceTemplates(db),
+    sidecar: sidecarHealth,
+    outbox: countOutbox(db),
     methods: ['passkey', ...config.legacyMethods.filter((method) => method === 'session' || method === 'password')],
-  }),
-);
+  });
+});
 
 app.route(
   '/',
@@ -109,6 +141,12 @@ app.route('/', makeKioskRouter({
   pwaOrigin: config.pwaOrigin,
   sessions: identitySessions,
 }));
+app.route('/', makeIdentityFaceRouter({ db, flow: faceFlow, authorization: kioskAuthorization, privateKey: keyPair.privateKey, lanId: config.lanId, facilityId: config.facilityId, aedilisBaseUrl: config.aedilisBaseUrl, aedilisGatewayToken: config.aedilisGatewayToken }));
+app.route('/', makeIdentityStaffRouter({ db, challenges, lanId: config.lanId, facilityId: config.facilityId, rpId: config.rpId, pwaOrigin: config.pwaOrigin, privateKey: keyPair.privateKey, staffRoles: config.staffRoles, sessions: staffSessions, aedilisBaseUrl: config.aedilisBaseUrl, aedilisGatewayToken: config.aedilisGatewayToken, dailyOverrideLimit: config.dailyOverrideLimit }));
+app.route('/', makeIdentityEnrollRouter({ db, sidecar, staff: staffSessions, enrollment, key: config.templateKey, modelId: 'insightface/glintr100@1', source: config.faceTemplateSource, baseUrl: config.cernereBaseUrl, serviceToken: config.cernereServiceToken, facilityId: config.facilityId }));
+if (config.aedilisBaseUrl && config.aedilisGatewayToken) setInterval(() => { void retryOutbox(db, config.aedilisBaseUrl, config.aedilisGatewayToken); }, 30_000).unref?.();
+rotateFaceEvents(db, config.eventRetentionDays);
+setInterval(() => rotateFaceEvents(db, config.eventRetentionDays), 86_400_000).unref?.();
 
 // PC無し/未登録passkey来場者向けフォールバック (Ostiarius 自身の origin で配信 = CORS 不要)。
 app.route(

@@ -5,7 +5,7 @@ export type IdentitySessionState = 'idle' | 'scanning' | 'challenging' | 'issued
 interface IdentitySession {
   expiresAt: number;
   state: IdentitySessionState;
-  method?: 'passkey';
+  method?: 'passkey' | 'face' | 'face_passive' | 'staff_override';
 }
 
 /** kiosk 用の短命セッション。外部状態を持たず、再起動時は安全に失効する。 */
@@ -45,6 +45,15 @@ export class IdentitySessionStore {
     if (!session) return false;
     session.state = 'issued';
     session.method = 'passkey';
+    session.expiresAt = Date.now() + this.ttlMs;
+    return true;
+  }
+
+  transition(sessionId: string, state: Exclude<IdentitySessionState, 'expired'>, method?: IdentitySession['method']): boolean {
+    const session = this.get(sessionId);
+    if (!session) return false;
+    session.state = state;
+    if (method) session.method = method;
     session.expiresAt = Date.now() + this.ttlMs;
     return true;
   }

@@ -50,9 +50,12 @@ assertion 自体を認証境界とする公開 API で、kiosk token を要求�
 
 ## 登録
 
+すべての `/identity/enroll/*` 操作は `X-Ostiarius-Staff: {staffSession}` を必須とし、
+`enrollId` を開始した職員セッションだけが同意・撮影・確定・中断できる。登録セッションは 10 分で失効する。
+
 ### `POST /identity/enroll/start`
-- req: `{ sessionId, staffAssertion: AuthenticationResponseJSON, studentAuthCode }`
-- 処理: 職員 assertion 検証 (roles) → 生徒 authCode を Cernere で交換して userId 確定 →
+- req: `{ studentAuthCode }`
+- 処理: 先行する職員 passkey 検証で発行された staffSession を検証 → 生徒 authCode を Cernere で交換して userId 確定 →
   同意ポリシーを返す
 - res 200: `{ enrollId, student: { userId, hint }, consent: { policyVersion, text } , shots: { required: 6 } }`
 

@@ -3,6 +3,22 @@
 # 焼き込まないため、 各サービスの catalog エントリは自リポに置く。
 # Excubitor が ${ARS_ROOT} 配下を走査して集積する (Excubitor catalog/FRAGMENTS.md 参照)。
 services:
+  # ポートは catalog が払い出す。17591 は localhost sidecar の仮既定値で外部公開しない。
+  - code: ostiarius-face-sidecar
+    name: Ostiarius face inference sidecar
+    tier: saas
+    project_code: ostiarius
+    component: face-sidecar
+    port: 17591
+    repo: LUDIARS/Ostiarius
+    runtime: python
+    cwd: ${ARS_ROOT}/Ostiarius/face-sidecar
+    command: uvicorn face_sidecar.app:app --host 127.0.0.1 --port ${port}
+    autostart: false
+    health:
+      type: http
+      url: http://127.0.0.1:17591/v1/health
+      interval_sec: 30
   - code: ostiarius
     name: Ostiarius (Wi-Fi内出席ゲートウェイ)
     # LAN-only。Cloudflare Tunnel / public domain / subdomain は割り当てない。
