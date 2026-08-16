@@ -32,6 +32,23 @@ env-cli (Infisical) 設定は `env-cli.config.ts`。
 | `OSTIARIUS_DATA` | data ディレクトリ | `./data` (server 親基準) | |
 | `OSTIARIUS_SYNC_INTERVAL_MS` | passkey 同期間隔 | `900000` (15min) | |
 | `OSTIARIUS_CHALLENGE_TTL_MS` | challenge TTL | `120000` (2min) | |
+| `OSTIARIUS_KIOSK_TOKEN` | kiosk / enroll 画面と `/identity/*` を開く共有トークン (**secret**) | — | **必須** (P1〜) |
+| `OSTIARIUS_LEGACY_METHODS` | 有効化する互換 method (CSV: `session,password`) | `''` (無効) | |
+| `OSTIARIUS_STAFF_ROLES` | 職員 override を許す Cernere ロール (CSV) | `staff,teacher,admin` | |
+| `OSTIARIUS_STAFF_USER_IDS` | export に `roles` が無い間の職員 userId (CSV、暫定) | `''` | |
+| `OSTIARIUS_STAFF_OVERRIDE_DAILY_MAX` | 職員 1 人あたり override 日次上限 | `20` | |
+| `OSTIARIUS_FACE_SIDECAR_URL` | face-sidecar ベース URL (localhost 固定推奨) | `http://127.0.0.1:17591` | 顔有効時 |
+| `OSTIARIUS_TEMPLATE_KEY` | 顔テンプレートキャッシュ暗号鍵 32byte base64 (**secret**) | — | 顔有効時 **必須** |
+| `OSTIARIUS_FACE_MATCH_THRESHOLD` | 1:N 受理 cos 類似度 (glintr100) | `0.62` | |
+| `OSTIARIUS_FACE_MARGIN` | top1 − top2 の下限 | `0.08` | |
+| `OSTIARIUS_FACE_CHALLENGE` | アクティブチャレンジ `required` / `off` | `required` | |
+| `OSTIARIUS_LIVENESS_THRESHOLD` | パッシブ生体性スコア下限 | `0.90` | |
+| `OSTIARIUS_FACE_TEMPLATE_SOURCE` | `cernere` (export 同期) / `local` (P3 未完時) | `cernere` | |
+| `OSTIARIUS_EVENT_RETENTION_DAYS` | 監査ログ保持日数 | `90` | |
+| `CERNERE_FRONTEND_URL` | 生徒向けパスキー登録 QR の URL 元 (`/profile#passkey`) | `CERNERE_BASE_URL` | |
+| `AEDILIS_GATEWAY_TOKEN` | kiosk 直接送信 (`/api/checkin/gateway-verify`) の Bearer (**secret**、P3〜) | — | 顔有効時 |
+
+顔認証 / パスキー代替 / 職員 override の設計は [feature/identity-verification.md](../feature/identity-verification.md)。
 
 派生: `dbPath = {dataDir}/ostiarius.db`。
 

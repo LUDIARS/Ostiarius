@@ -7,10 +7,10 @@ listen: `0.0.0.0:{OSTIARIUS_PORT}` (既定 17590)。実装: `server/index.ts`、
 ## CORS / 認証境界
 
 - CORS は `OSTIARIUS_PWA_ORIGIN` のみ許可。`allowMethods: ['GET','POST','OPTIONS']`、
-  `allowHeaders: ['content-type']` (`server/index.ts`)。
-- **アプリ層の認証は無い**: 来場者の認証は WebAuthn assertion 自体が担う。
-  到達制御は「会場 LAN にしか配置しない」というデプロイ前提で担保する
-  (アプリは Bearer 等を要求しない)。
+  `allowHeaders: ['content-type','authorization']` (`server/index.ts`)。
+- 通常の passkey 経路はアプリ層の Bearer を要求せず、WebAuthn assertion 自体が
+  認証を担う。低保証の互換経路だけは Cernere Bearer を検証する。
+  到達制御は「会場 LAN にしか配置しない」というデプロイ前提で担保する。
 - 全エンドポイントは未マッチ時 `404 { error: 'not_found' }` (`app.notFound`)。
 
 ---
@@ -48,6 +48,18 @@ assertion を検証し、OK なら attestation を署名して返す。
   | 401 | `{ error: 'unknown_credential', code: 'passkey 未登録/未同期' }` | credential が DB に無い |
   | 401 | `{ error: 'assertion_failed', message? }` | 署名/origin/rpID 検証失敗 |
 
+## `POST /checkin/session` (互換経路、既定無効)
+
+`OSTIARIUS_LEGACY_METHODS` に `session` を明示した施設だけで公開する低保証の互換経路。
+有効な Cernere access token を `Authorization: Bearer {token}` または
+`{ accessToken }` で受け、Cernere の `/api/auth/me` で本人を確定して attestation を返す。
+
+- 既定では route 自体を mount せず、`404 { error: 'not_found' }`。
+- res 200: `{ attestation, profile }`。入力 token は応答へ反射しない。
+- res 400: `{ error: 'accessToken is required' }` — token が無い。
+- res 401: `{ error }` — token が無効、または Cernere 側でユーザを確定できない。
+- 詳細な保証水準と有効化方針は [feature/passkey-fallback.md](../feature/passkey-fallback.md) §5。
+
 ## `GET /gateway-public-key`
 
 - res 200: `{ lanId, facilityId, publicKeyPem }` — 初回 provision (Aedilis 登録) 用の公開鍵。
@@ -60,4 +72,5 @@ assertion を検証し、OK なら attestation を署名して返す。
 ## 関連
 
 - 機能詳細: [feature/checkin-verification.md](../feature/checkin-verification.md)
+- 本人確認ゲート (`/identity/*`、`method` / `assurance` 付き attestation): [interface/http-identity.md](./http-identity.md)
 - env (port / origin / rpId): [setup/configuration.md](../setup/configuration.md)

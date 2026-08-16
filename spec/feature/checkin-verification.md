@@ -90,5 +90,6 @@ CONTRACTS §1 / spike `shared.ts` と完全一致)。payload は固定フィー�
 ## 関連
 
 - 公開鍵キャッシュ: [data/credentials.md](../data/credentials.md)
+- 役割再設計 (顔認証が主経路、パスキーは補助): [feature/identity-verification.md](./identity-verification.md) / [feature/passkey-fallback.md](./passkey-fallback.md)
 - HTTP contract: [interface/http-checkin.md](../interface/http-checkin.md)
 - 鍵供給: [feature/attestation-key-management.md](./attestation-key-management.md)

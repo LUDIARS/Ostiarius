@@ -15,8 +15,12 @@ import { generateWifiQrPng, loginAndAttest, tokenAndAttest, type MobileCheckinDe
 export interface MobileCheckinRouteDeps {
   wifiSsid: string;
   wifiPassword: string;
-  /** 空なら「PC のパスキーチェックインを使ってください」的な無効フォームを出す。 */
+  /** 空ならパスワード互換フォームを表示しない。 */
   aedilisBaseUrl: string;
+  /** session は低保証の互換経路なので、明示的に有効化した場合だけ mount する。 */
+  sessionCheckinEnabled: boolean;
+  /** password は低保証の互換経路なので、明示的に有効化した場合だけ mount する。 */
+  passwordCheckinEnabled: boolean;
   loginDeps: MobileCheckinDeps;
 }
 
@@ -32,6 +36,7 @@ function escapeHtml(s: string): string {
 function renderPage(deps: MobileCheckinRouteDeps): string {
   const hasWifi = Boolean(deps.wifiSsid);
   const hasAedilis = Boolean(deps.aedilisBaseUrl);
+  const hasPasswordCheckin = hasAedilis && deps.passwordCheckinEnabled;
   const aedilisBaseUrlJson = JSON.stringify(deps.aedilisBaseUrl);
 
   const wifiSection = hasWifi
@@ -43,7 +48,7 @@ function renderPage(deps: MobileCheckinRouteDeps): string {
     </section>`
     : '';
 
-  const formSection = hasAedilis
+  const formSection = hasPasswordCheckin
     ? `
     <section class="card">
       <h2>チェックイン</h2>
@@ -66,10 +71,10 @@ function renderPage(deps: MobileCheckinRouteDeps): string {
     : `
     <section class="card">
       <h2>チェックイン</h2>
-      <p class="error">この会場では簡易チェックインが未構成です (AEDILIS_BASE_URL 未設定)。 PC のパスキーチェックインをご利用ください。</p>
+      <p class="error">この会場ではパスワードによる簡易チェックインは利用できません。PC のパスキーチェックインをご利用ください。</p>
     </section>`;
 
-  const script = hasAedilis
+  const script = hasPasswordCheckin
     ? `
     <script>
       const AEDILIS_BASE_URL = ${aedilisBaseUrlJson};
@@ -178,42 +183,48 @@ export function makeMobileCheckinRouter(deps: MobileCheckinRouteDeps): Hono {
     return c.body(new Uint8Array(png), 200, { 'content-type': 'image/png' });
   });
 
-  r.post('/checkin/mobile-login', async (c) => {
-    const body = (await c.req.json().catch(() => null)) as
-      | { email?: unknown; password?: unknown }
-      | null;
-    const email = body?.email;
-    const password = body?.password;
-    if (typeof email !== 'string' || !email || typeof password !== 'string' || !password) {
-      return c.json({ error: 'メールアドレスとパスワードを入力してください。' }, 400);
-    }
+  if (deps.passwordCheckinEnabled) {
+    r.post('/checkin/mobile-login', async (c) => {
+      const body = (await c.req.json().catch(() => null)) as
+        | { email?: unknown; password?: unknown }
+        | null;
+      const email = body?.email;
+      const password = body?.password;
+      if (typeof email !== 'string' || !email || typeof password !== 'string' || !password) {
+        return c.json({ error: 'メールアドレスとパスワードを入力してください。' }, 400);
+      }
 
-    const result = await loginAndAttest(deps.loginDeps, email, password);
-    if ('error' in result) {
-      return c.json({ error: result.error }, 401);
-    }
-    return c.json(result);
-  });
+      const result = await loginAndAttest(deps.loginDeps, email, password);
+      if ('error' in result) {
+        return c.json({ error: result.error }, 401);
+      }
+      return c.json(result);
+    });
+  }
 
-  // 既に Cernere ログイン済み (PWA が accessToken を保持) の自動チェックイン。
-  // passkey/パスワードを再入力させず、 Bearer or { accessToken } を検証して attestation を返す。
-  r.post('/checkin/session', async (c) => {
-    const auth = c.req.header('authorization') ?? '';
-    let token = /^bearer\s+/i.test(auth) ? auth.replace(/^bearer\s+/i, '').trim() : '';
-    if (!token) {
-      const body = (await c.req.json().catch(() => null)) as { accessToken?: unknown } | null;
-      if (typeof body?.accessToken === 'string') token = body.accessToken.trim();
-    }
-    if (!token) {
-      return c.json({ error: 'accessToken is required' }, 400);
-    }
+  if (deps.sessionCheckinEnabled) {
+    // 既に Cernere ログイン済み (PWA が accessToken を保持) の自動チェックイン。
+    // passkey/パスワードを再入力させず、 Bearer or { accessToken } を検証して attestation を返す。
+    r.post('/checkin/session', async (c) => {
+      const auth = c.req.header('authorization') ?? '';
+      let token = /^bearer\s+/i.test(auth) ? auth.replace(/^bearer\s+/i, '').trim() : '';
+      if (!token) {
+        const body = (await c.req.json().catch(() => null)) as { accessToken?: unknown } | null;
+        if (typeof body?.accessToken === 'string') token = body.accessToken.trim();
+      }
+      if (!token) {
+        return c.json({ error: 'accessToken is required' }, 400);
+      }
 
-    const result = await tokenAndAttest(deps.loginDeps, token);
-    if ('error' in result) {
-      return c.json({ error: result.error }, 401);
-    }
-    return c.json(result);
-  });
+      const result = await tokenAndAttest(deps.loginDeps, token);
+      if ('error' in result) {
+        return c.json({ error: result.error }, 401);
+      }
+      // PWA は既に token を保持している。Bearer token を反射してログやブラウザの
+      // 開発者ツールに余分に残す必要はない。
+      return c.json({ attestation: result.attestation, profile: result.profile });
+    });
+  }
 
   return r;
 }

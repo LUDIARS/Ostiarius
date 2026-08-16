@@ -56,6 +56,8 @@ export interface OstiariusConfig {
   cernereProjectClientId: string;
   /** OSTIARIUS_CERNERE_PROJECT_CLIENT_SECRET — 同上の client_secret (secret) */
   cernereProjectClientSecret: string;
+  /** OSTIARIUS_LEGACY_METHODS — 明示的に許可した旧来の本人確認経路。既定は全て無効。 */
+  legacyMethods: readonly string[];
 }
 
 export function loadConfig(): OstiariusConfig {
@@ -87,5 +89,10 @@ export function loadConfig(): OstiariusConfig {
     // (createVantanUserClient 側が null を返し、 呼び出し側が enrichment をスキップする)。
     cernereProjectClientId: optionalEnv('OSTIARIUS_CERNERE_PROJECT_CLIENT_ID', ''),
     cernereProjectClientSecret: optionalEnv('OSTIARIUS_CERNERE_PROJECT_CLIENT_SECRET', ''),
+    // session/password は passkey より弱い互換経路なので、運用者の明示設定が無ければ公開しない。
+    legacyMethods: optionalEnv('OSTIARIUS_LEGACY_METHODS', '')
+      .split(',')
+      .map((method) => method.trim())
+      .filter(Boolean),
   };
 }

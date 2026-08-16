@@ -4,9 +4,8 @@
 // server/routes/checkin.ts (passkey) とは別ルートだが、 attestation の署名形式は
 // 完全に同じ (server/attestation.ts, 変えると Aedilis 側検証が破綻する)。
 //
-// パスワードのみでの本人確認は passkey より弱いが、 「PC無しでもチェックインできる」
-// アクセシビリティとのトレードオフとして明示的に許容する — 追加 MFA 等の摩擦は
-// 意図的に入れない (指示による)。
+// パスワードのみでの本人確認は passkey より弱いため、呼び出し元が
+// OSTIARIUS_LEGACY_METHODS=password を明示した場合だけ HTTP route として公開する。
 
 import { randomBytes } from 'node:crypto';
 import type { KeyObject } from 'node:crypto';
@@ -166,6 +165,8 @@ export async function loginAndAttest(
  *
  * - token 無効 / Cernere 不通 → 再ログイン誘導のエラー。
  * - attestation 形式は loginAndAttest と完全に同一 (Aedilis 側検証が同じ)。
+ * - `OSTIARIUS_LEGACY_METHODS=session` を明示した場合だけ route から到達する
+ *   ([spec/feature/passkey-fallback.md](../spec/feature/passkey-fallback.md) §5)。
  */
 export async function tokenAndAttest(
   deps: MobileCheckinDeps,

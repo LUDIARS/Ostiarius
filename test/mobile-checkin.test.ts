@@ -5,6 +5,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import { generateKeyPairSync } from 'node:crypto';
+import { Hono } from 'hono';
 
 import {
   buildWifiQrPayload,
@@ -12,6 +13,7 @@ import {
   loginAndAttest,
   type MobileCheckinDeps,
 } from '../server/mobile-checkin.ts';
+import { makeMobileCheckinRouter } from '../server/routes/mobile-checkin.ts';
 import { ChallengeStore } from '../server/challenge-store.ts';
 import { verifyAttestation } from '../server/attestation.ts';
 import type { VantanUserProfile } from '../server/vantan-user-client.ts';
@@ -68,6 +70,69 @@ function jsonResponse(status: number, body: unknown): Response {
     json: async () => body,
   } as unknown as Response;
 }
+
+function makeMobileCheckinApp(
+  loginDeps: MobileCheckinDeps,
+  sessionCheckinEnabled: boolean,
+): Hono {
+  const app = new Hono();
+  app.route('/', makeMobileCheckinRouter({
+    wifiSsid: '',
+    wifiPassword: '',
+    aedilisBaseUrl: '',
+    sessionCheckinEnabled,
+    passwordCheckinEnabled: false,
+    loginDeps,
+  }));
+  return app;
+}
+
+describe('POST /checkin/session', () => {
+  it('is not exposed unless the low-assurance session method is explicitly enabled', async () => {
+    const app = makeMobileCheckinApp(makeDeps(), false);
+
+    const response = await app.request('http://ostiarius.test/checkin/session', {
+      method: 'POST',
+      headers: { authorization: 'Bearer tok-abc' },
+    });
+
+    expect(response.status).toBe(404);
+  });
+
+  it('validates the Bearer token without reflecting it in the response', async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse(200, { id: 'user-42' })) as unknown as typeof fetch;
+    const app = makeMobileCheckinApp(makeDeps({ fetchImpl }), true);
+
+    const response = await app.request('http://ostiarius.test/checkin/session', {
+      method: 'POST',
+      headers: { authorization: 'Bearer tok-abc' },
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      attestation: expect.any(String),
+      profile: null,
+    });
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'https://cernere.example.com/api/auth/me',
+      expect.objectContaining({ headers: { authorization: 'Bearer tok-abc' } }),
+    );
+  });
+});
+
+describe('POST /checkin/mobile-login', () => {
+  it('is not exposed unless the low-assurance password method is explicitly enabled', async () => {
+    const app = makeMobileCheckinApp(makeDeps(), false);
+
+    const response = await app.request('http://ostiarius.test/checkin/mobile-login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'alice@example.com', password: 'correct-horse' }),
+    });
+
+    expect(response.status).toBe(404);
+  });
+});
 
 describe('loginAndAttest', () => {
   it('returns a valid attestation on successful login (round-trips through verifyAttestation)', async () => {

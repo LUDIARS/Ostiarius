@@ -1,9 +1,14 @@
-# Ostiarius — 会場LANチェックインゲートウェイ
+# Ostiarius — 本人確認ゲート (顔認証 + パスキー) / 会場LANチェックイン
 
-LUDIARS の出席チェックイン基盤の「会場側」コンポーネント。会場の LAN に置く
-小さなスタンドアロンサービス (Raspberry Pi / 会場 PC 等) で、来場者の PWA から
-来た passkey assertion を **オフラインで** 検証し、検証 OK なら出席の証跡
-(attestation) を自鍵で署名して返す。
+LUDIARS の出席チェックイン基盤の「会場側」コンポーネント。会場に置く小さな
+スタンドアロンサービス (Raspberry Pi / 会場 PC 等) で、**その場に本人がいる**ことを
+確認して出席の証跡 (attestation) を自鍵で署名し Aedilis へ渡す。
+
+> **役割再設計 (2026-08、Memoria #1048)**: 主経路は kiosk カメラによる **顔認証 + 生体性確認**、
+> 補助経路が本人携帯端末の **パスキー** (Cernere 正本)、人手経路が職員 override。
+> 設計正本は [`spec/feature/identity-verification.md`](spec/feature/identity-verification.md)、
+> 生体情報の方針は [`spec/plan/biometric-data-policy.md`](spec/plan/biometric-data-policy.md)。
+> 以下は現行実装 (パスキー LAN 検証) の説明で、P1〜P3 の実装計画は `spec/tasks/idv-*.md`。
 
 正本仕様は `Aedilis/checkin-spike/CONTRACTS.md` (§1 Attestation / §3 Ostiarius)。
 スパイク `gateway-server.ts` を「本物のサービス」に昇格させたもの。

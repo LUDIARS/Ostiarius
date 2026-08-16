@@ -64,7 +64,7 @@ app.use(
   cors({
     origin: config.pwaOrigin,
     allowMethods: ['GET', 'POST', 'OPTIONS'],
-    allowHeaders: ['content-type'],
+    allowHeaders: ['content-type', 'authorization'],
   }),
 );
 
@@ -99,6 +99,8 @@ app.route(
     wifiSsid: config.wifiSsid,
     wifiPassword: config.wifiPassword,
     aedilisBaseUrl: config.aedilisBaseUrl,
+    sessionCheckinEnabled: config.legacyMethods.includes('session'),
+    passwordCheckinEnabled: config.legacyMethods.includes('password'),
     loginDeps: {
       cernereBaseUrl: config.cernereBaseUrl,
       facilityId: config.facilityId,

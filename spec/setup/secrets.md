@@ -12,6 +12,9 @@ Bibliotheca と同パターン。
 | `OSTIARIUS_PRIVATE_KEY` | Ed25519 秘密鍵 (PKCS#8 PEM)。本番はこれを inject | Infisical |
 | `AEDILIS_ADMIN_TOKEN` | 公開鍵 自己登録の admin Bearer | Infisical |
 | `CLOUDFLARE_DNS_API_TOKEN` | ACME DNS-01 の TXT 操作 (CLI 専用) | Infisical |
+| `OSTIARIUS_KIOSK_TOKEN` | kiosk / enroll 画面と `/identity/*` の共有トークン | Infisical |
+| `OSTIARIUS_TEMPLATE_KEY` | 顔テンプレートキャッシュの AES-256-GCM 鍵 (32byte base64)。Cernere export の施設配布鍵と同一 | Infisical |
+| `AEDILIS_GATEWAY_TOKEN` | kiosk 直接送信 (`/api/checkin/gateway-verify`) の Bearer (P3〜) | Infisical |
 
 これらは `env-cli.config.ts` の `infraKeys` に default を置かず、必ず Infisical から供給する。
 
