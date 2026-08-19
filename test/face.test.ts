@@ -38,7 +38,7 @@ describe('face domain', () => {
     const fresh = new Float32Array(512); fresh[1] = 1;
     const wire = encryptFaceTemplate(fresh, key).toString('base64');
     const original = globalThis.fetch;
-    globalThis.fetch = async () => new Response(JSON.stringify({ templates: [{ userId: 'kept', template: wire, modelId: 'm', quality: .9, version: 2, enrolledAt: 2 }], revoked: [{ userId: 'removed' }] }));
+    globalThis.fetch = async () => new Response(JSON.stringify({ templates: [{ userId: 'kept', template: wire, modelId: 'm', quality: .9, version: 2, enrolledAt: 2, state: 'active' }], revoked: [{ userId: 'removed' }] }));
     try {
       await expect(syncFaceTemplates({ db, baseUrl: 'https://cernere.example', serviceToken: 'secret', facilityId: 'f', key })).resolves.toEqual({ ok: true, synced: 1 });
       expect(db.prepare('SELECT user_id FROM face_templates ORDER BY user_id').all()).toEqual([{ user_id: 'kept' }]);

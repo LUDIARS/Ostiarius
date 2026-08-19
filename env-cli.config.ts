@@ -64,6 +64,10 @@ const config: EnvCliConfig = {
     OSTIARIUS_FACE_CHALLENGE: "required",
     OSTIARIUS_FACE_TEMPLATE_SOURCE: "cernere",
     OSTIARIUS_STAFF_ROLES: "staff,admin",
+    // 写真由来 pending の職員承認 (spec/feature/face-photo-seeded-enrollment.md)。
+    // CERNERE_FACE_PHOTO_TOKEN は secret — Infisical のみ (scope face-photo:read / face-photo:manage)。
+    // 審査者 userId は Cernere 側で施設の owner/admin/maintainer である必要がある。
+    OSTIARIUS_FACE_REVIEWER_USER_ID: "",
     OSTIARIUS_STAFF_OVERRIDE_DAILY_LIMIT: "20",
     OSTIARIUS_EVENT_RETENTION_DAYS: "90",
     // AEDILIS_GATEWAY_TOKEN は secret — Infisical のみ (Aedilis /admin/gateways 登録時に払い出し)

@@ -3,6 +3,7 @@ import { toString as qrToString } from 'qrcode';
 
 import type { IdentitySessionStore } from '../identity-session-store.ts';
 import type { KioskAuthorization } from '../kiosk-authorization.ts';
+import { REVIEW_PANEL_HTML, REVIEW_PANEL_SCRIPT } from './kiosk-review-panel.ts';
 
 const PROTECTED_HEADERS = {
   'cache-control': 'no-store',
@@ -14,8 +15,13 @@ export function makeKioskRouter(args: {
   authorization: KioskAuthorization;
   pwaOrigin: string;
   sessions: IdentitySessionStore;
+  /** 写真審査 (Cernere の写真 token / 審査者 userId) が揃っている時だけ承認パネルを出す。 */
+  reviewEnabled: boolean;
 }): Hono {
   const router = new Hono();
+  const reviewButton = args.reviewEnabled ? '<button id="review">写真の申請を審査（職員）</button>' : '';
+  const reviewPanel = args.reviewEnabled ? REVIEW_PANEL_HTML : '';
+  const reviewScript = args.reviewEnabled ? REVIEW_PANEL_SCRIPT : '';
   router.get('/kiosk/passkey-qr/:sessionId', async (c) => {
     if (!args.authorization.isAuthorized(c)) return c.json({ error: 'kiosk_unauthorized' }, 401);
     const sessionId = c.req.param('sessionId');
@@ -45,6 +51,7 @@ export function makeKioskRouter(args: {
   <button id="register">端末を登録</button>
   <button id="face">顔認証</button>
   <button id="enroll">顔を登録（職員）</button>
+  ${reviewButton}
   <p id="status"></p>
 <div id="qr"></div>
   <video id="camera" autoplay muted playsinline hidden></video>
@@ -63,6 +70,7 @@ export function makeKioskRouter(args: {
     <button id="capture-shot" disabled>このポーズを撮影</button>
     <button id="cancel-enroll" disabled>中断</button>
   </section>
+  ${reviewPanel}
 </main>
 <script>
 const status = document.querySelector('#status');
@@ -296,6 +304,7 @@ consentAccepted.onchange = () => { acceptConsent.disabled = !consentAccepted.che
 acceptConsent.onclick = () => beginCapture().catch(() => { enrollStatus.textContent = '同意またはカメラを確認できません。'; });
 captureShot.onclick = () => captureEnrollmentShot().catch(() => { captureShot.disabled = false; shotProgress.textContent = '撮影に失敗しました。もう一度お試しください。'; });
 cancelEnroll.onclick = () => { void cancelEnrollment(); };
+${reviewScript}
 </script>`, 200, {
       ...PROTECTED_HEADERS,
       'content-security-policy': "default-src 'self'; img-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",

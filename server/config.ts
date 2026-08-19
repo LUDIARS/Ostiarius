@@ -52,6 +52,14 @@ export interface OstiariusConfig {
   cernereBaseUrl: string;
   cernereFrontendUrl: string;
   cernereServiceToken: string;
+  /** CERNERE_FACE_PHOTO_TOKEN — 顔写真取得・審査用 Bearer (scope face-photo:read / face-photo:manage)。
+   *  Cernere の service-scope-auth は project token を拒否し tool_client の scope か admin user token しか
+   *  受理しないため、export 用 token とは分けて持つ。空なら写真審査機能を丸ごと無効にする (fail closed)。 */
+  cernereFacePhotoToken: string;
+  /** OSTIARIUS_FACE_REVIEWER_USER_ID — promote / reject に載せる Cernere 上の審査者 userId。
+   *  Cernere 側が enrolledBy と token の主体の一致を強制するため、kiosk のその場の職員 ID は載せられない。
+   *  実際に承認した職員は Ostiarius の face_events に actor として残す (二重記録)。 */
+  cernereReviewerUserId: string;
   rpId: string;
   pwaOrigin: string;
   keyPath: string;
@@ -107,6 +115,10 @@ export function loadConfig(): OstiariusConfig {
     cernereBaseUrl,
     cernereFrontendUrl,
     cernereServiceToken: requireEnv('CERNERE_SERVICE_TOKEN'),
+    // 写真は個人データそのもので、export 用 token に暗黙で権限を足したくない。
+    // 未設定なら審査経路を公開しない (起動は止めない — 出席確認そのものは影響を受けない)。
+    cernereFacePhotoToken: optionalEnv('CERNERE_FACE_PHOTO_TOKEN', ''),
+    cernereReviewerUserId: optionalEnv('OSTIARIUS_FACE_REVIEWER_USER_ID', ''),
     rpId: requireEnv('OSTIARIUS_RP_ID'),
     pwaOrigin: normalizeHttpOrigin('OSTIARIUS_PWA_ORIGIN', requireEnv('OSTIARIUS_PWA_ORIGIN')),
     keyPath: resolve(optionalEnv('OSTIARIUS_KEY_PATH', join(dataDir, 'gateway.key'))),

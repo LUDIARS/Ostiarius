@@ -22,6 +22,8 @@ env-cli (Infisical) 設定は `env-cli.config.ts`。
 | `OSTIARIUS_FACILITY_ID` | 紐づく施設 (attestation.placeId) | — | **必須** |
 | `CERNERE_BASE_URL` | passkey export 取得元 (末尾 `/` 除去) | — | **必須** |
 | `CERNERE_SERVICE_TOKEN` | export 用 admin/service Bearer (**secret**) | — | **必須** |
+| `CERNERE_FACE_PHOTO_TOKEN` | プロフィール顔写真の取得・審査用 Bearer。scope `face-photo:read` / `face-photo:manage` (**secret**) | `''` (空=写真審査を無効) | |
+| `OSTIARIUS_FACE_REVIEWER_USER_ID` | promote / reject の `enrolledBy` に載せる Cernere 上の審査者 userId。token の主体と一致必須 | `''` (空=写真審査を無効) | |
 | `OSTIARIUS_RP_ID` | WebAuthn rpID (Cernere と同 eTLD+1) | — | **必須** |
 | `OSTIARIUS_PWA_ORIGIN` | CORS 許可 + expectedOrigin の PWA origin | — | **必須** |
 | `OSTIARIUS_PRIVATE_KEY` | Ed25519 秘密鍵 PKCS#8 PEM。本番は inject (**secret**) | `''` (空→file 経路) | 本番 必須 |

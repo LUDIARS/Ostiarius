@@ -4,8 +4,8 @@ import { recordFaceEvent, upsertFaceTemplate } from '../db.ts';
 import { averageEmbedding, EnrollmentSessionStore } from '../face/enrollment-session.ts';
 import type { FaceSidecar } from '../face/sidecar-client.ts';
 import type { StaffSessionStore } from '../face/staff-session.ts';
-
-const CONSENT_TEXT = '顔テンプレートのみを保存し、写真は保存しません。いつでも撤回できます。';
+import { CernereTemplateClient } from '../face/cernere-template-client.ts';
+import { FACE_CONSENT_POLICY_VERSION, FACE_CONSENT_TEXT } from '../face/consent-policy.ts';
 export function makeIdentityEnrollRouter(deps: { db: Database.Database; sidecar: FaceSidecar; staff: StaffSessionStore; enrollment: EnrollmentSessionStore; key: Buffer; modelId: string; source: 'cernere' | 'local'; baseUrl: string; serviceToken: string; facilityId: string }): Hono {
   const router = new Hono();
   router.post('/identity/enroll/start', async (c) => {
@@ -14,7 +14,7 @@ export function makeIdentityEnrollRouter(deps: { db: Database.Database; sidecar:
     const studentUserId = await resolveStudent(body?.studentAuthCode, deps);
     if (!studentUserId) return c.json({ error: 'student_auth_failed' }, 401);
     const enrollId = deps.enrollment.start(studentUserId, actor);
-    return c.json({ enrollId, student: { userId: studentUserId, hint: `ID / ${studentUserId.slice(-2)}` }, consent: { policyVersion: 'face-biometric-v1', text: CONSENT_TEXT }, shots: { required: 6 } });
+    return c.json({ enrollId, student: { userId: studentUserId, hint: `ID / ${studentUserId.slice(-2)}` }, consent: { policyVersion: FACE_CONSENT_POLICY_VERSION, text: FACE_CONSENT_TEXT }, shots: { required: 6 } });
   });
   router.post('/identity/enroll/consent', async (c) => {
     const body = await c.req.json().catch(() => null) as { enrollId?: unknown; accepted?: unknown } | null;
@@ -56,8 +56,8 @@ export function makeIdentityEnrollRouter(deps: { db: Database.Database; sidecar:
     if (!session || !template) return c.json({ error: 'insufficient_shots' }, 409);
     const version = Date.now();
     if (deps.source === 'cernere') {
-      const response = await fetch(`${deps.baseUrl}/api/identity/face-template`, { method: 'PUT', headers: { authorization: `Bearer ${deps.serviceToken}`, 'content-type': 'application/json' }, body: JSON.stringify({ userId: session.studentUserId, template: Buffer.from(template.buffer).toString('base64'), modelId: deps.modelId, quality: session.qualities.reduce((a, b) => a + b, 0) / session.qualities.length, facilityId: deps.facilityId, enrolledBy: session.staffUserId, consentId: session.consentId }) });
-      if (!response.ok) return c.json({ error: 'template_store_failed' }, 503);
+      const stored = await templates(deps).putTemplate({ userId: session.studentUserId, template, modelId: deps.modelId, quality: session.qualities.reduce((a, b) => a + b, 0) / session.qualities.length, enrolledBy: session.staffUserId, consentId: session.consentId ?? '' });
+      if (!stored) return c.json({ error: 'template_store_failed' }, 503);
     }
     upsertFaceTemplate(deps.db, { userId: session.studentUserId, template, modelId: deps.modelId, quality: 1, enrolledAt: Date.now(), version, key: deps.key });
     recordFaceEvent(deps.db, { kind: 'enroll', outcome: 'issued', subjectUser: session.studentUserId, reason: `shots:${session.embeddings.length}` });
@@ -86,10 +86,10 @@ async function resolveStudent(value: unknown, deps: { source: 'cernere' | 'local
   } catch { return null; }
 }
 
+function templates(deps: { baseUrl: string; serviceToken: string; facilityId: string }): CernereTemplateClient {
+  return new CernereTemplateClient({ baseUrl: deps.baseUrl, serviceToken: deps.serviceToken, facilityId: deps.facilityId });
+}
+
 async function recordConsent(studentUserId: string, deps: { baseUrl: string; serviceToken: string; facilityId: string }): Promise<string | null> {
-  try {
-    const response = await fetch(`${deps.baseUrl}/api/identity/face-consent`, { method: 'POST', headers: { authorization: `Bearer ${deps.serviceToken}`, 'content-type': 'application/json' }, body: JSON.stringify({ userId: studentUserId, policyVersion: 'face-biometric-v1', facilityId: deps.facilityId }) });
-    const body = await response.json() as { consentId?: unknown };
-    return response.ok && typeof body.consentId === 'string' ? body.consentId : null;
-  } catch { return null; }
+  return templates(deps).recordConsent(studentUserId, FACE_CONSENT_POLICY_VERSION);
 }

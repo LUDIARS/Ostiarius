@@ -9,6 +9,8 @@ interface ExportedTemplate {
   version?: unknown;
   enrolledAt?: unknown;
   revoked?: unknown;
+  /** Cernere の face_templates.state。export は active しか返さないが、こちらでも検証する。 */
+  state?: unknown;
 }
 
 interface TemplateExportResponse {
@@ -38,6 +40,17 @@ function validTemplate(value: ExportedTemplate): value is ValidTemplate {
   return typeof value.userId === 'string' && typeof value.template === 'string' && typeof value.modelId === 'string';
 }
 
+/**
+ * 照合に載せてよいのは active だけ (二重防御)。
+ * Cernere の export は state='active' に絞っている
+ * (Cernere/server/src/identity/face-template-store.ts:179) が、
+ * 写真由来の pending や state を欠く不完全な応答が万一混ざっても、
+ * 施設キャッシュへ入れない。Cernere との現在の export 契約では state は必須である。
+ */
+function isActiveState(value: unknown): boolean {
+  return value === 'active';
+}
+
 /** Cernere の全量 export をローカル AES-GCM キャッシュに反映する。 */
 export async function syncFaceTemplates(options: FaceTemplateSyncOptions): Promise<{ ok: boolean; synced: number }> {
   const url = new URL('/api/identity/face-template/export', options.baseUrl);
@@ -51,7 +64,7 @@ export async function syncFaceTemplates(options: FaceTemplateSyncOptions): Promi
     let synced = 0;
     const transaction = options.db.transaction(() => {
       for (const item of templates) {
-        if (!validTemplate(item) || item.revoked === true) continue;
+        if (!validTemplate(item) || item.revoked === true || !isActiveState(item.state)) continue;
         const encrypted = Buffer.from(item.template, 'base64');
         const embedding = decryptFaceTemplate(encrypted, options.key);
         present.add(item.userId);

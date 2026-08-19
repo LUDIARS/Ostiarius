@@ -40,6 +40,10 @@ import { StaffSessionStore } from './face/staff-session.ts';
 import { EnrollmentSessionStore } from './face/enrollment-session.ts';
 import { makeIdentityStaffRouter } from './routes/identity-staff.ts';
 import { makeIdentityEnrollRouter } from './routes/identity-enroll.ts';
+import { createCernerePhotoClient } from './face/cernere-photo-client.ts';
+import { CernereTemplateClient } from './face/cernere-template-client.ts';
+import { FaceReviewService } from './face/review-service.ts';
+import { makeIdentityReviewRouter } from './routes/identity-review.ts';
 
 const config = loadConfig();
 const db = openDb(config.dbPath);
@@ -62,18 +66,29 @@ startCernereSync({
   serviceToken: config.cernereServiceToken,
   intervalMs: config.syncIntervalMs,
 });
+// 承認直後に施設キャッシュへ反映するため、定期同期と同じ処理を関数として持つ。
+const syncTemplatesNow = (): Promise<{ ok: boolean; synced: number }> => syncFaceTemplates({
+  db,
+  baseUrl: config.cernereBaseUrl,
+  serviceToken: config.cernereServiceToken,
+  facilityId: config.facilityId,
+  key: config.templateKey,
+});
 if (config.faceTemplateSource === 'cernere') {
-  const syncTemplates = (): void => {
-    void syncFaceTemplates({
-      db,
-      baseUrl: config.cernereBaseUrl,
-      serviceToken: config.cernereServiceToken,
-      facilityId: config.facilityId,
-      key: config.templateKey,
-    });
-  };
-  syncTemplates();
-  setInterval(syncTemplates, config.syncIntervalMs).unref?.();
+  void syncTemplatesNow();
+  setInterval(() => { void syncTemplatesNow(); }, config.syncIntervalMs).unref?.();
+}
+
+// 写真取得・審査は scope 付き token と Cernere 上の審査者 userId が揃って初めて有効。
+// 欠けている場合は承認パネルも API も出さない (権限が無いまま画面だけ出さない)。
+const facePhotoClient = createCernerePhotoClient({
+  baseUrl: config.cernereBaseUrl,
+  token: config.cernereFacePhotoToken,
+  facilityId: config.facilityId,
+  reviewerUserId: config.cernereReviewerUserId,
+});
+if (!facePhotoClient) {
+  console.warn('[ostiarius] CERNERE_FACE_PHOTO_TOKEN / OSTIARIUS_FACE_REVIEWER_USER_ID 未設定 → 写真由来 pending の職員承認は無効 (従来の職員立会い登録は利用できます)');
 }
 
 // vantan_user プロフィール enrichment (モバイルチェックイン確認画面の department/grade/name 表示) は
@@ -140,10 +155,34 @@ app.route('/', makeKioskRouter({
   authorization: kioskAuthorization,
   pwaOrigin: config.pwaOrigin,
   sessions: identitySessions,
+  reviewEnabled: Boolean(facePhotoClient),
 }));
 app.route('/', makeIdentityFaceRouter({ db, flow: faceFlow, authorization: kioskAuthorization, privateKey: keyPair.privateKey, lanId: config.lanId, facilityId: config.facilityId, aedilisBaseUrl: config.aedilisBaseUrl, aedilisGatewayToken: config.aedilisGatewayToken }));
 app.route('/', makeIdentityStaffRouter({ db, challenges, lanId: config.lanId, facilityId: config.facilityId, rpId: config.rpId, pwaOrigin: config.pwaOrigin, privateKey: keyPair.privateKey, staffRoles: config.staffRoles, sessions: staffSessions, aedilisBaseUrl: config.aedilisBaseUrl, aedilisGatewayToken: config.aedilisGatewayToken, dailyOverrideLimit: config.dailyOverrideLimit }));
 app.route('/', makeIdentityEnrollRouter({ db, sidecar, staff: staffSessions, enrollment, key: config.templateKey, modelId: 'insightface/glintr100@1', source: config.faceTemplateSource, baseUrl: config.cernereBaseUrl, serviceToken: config.cernereServiceToken, facilityId: config.facilityId }));
+if (facePhotoClient) {
+  app.route('/', makeIdentityReviewRouter({
+    db,
+    staff: staffSessions,
+    photos: facePhotoClient,
+    review: new FaceReviewService({
+      db,
+      photos: facePhotoClient,
+      templates: new CernereTemplateClient({ baseUrl: config.cernereBaseUrl, serviceToken: config.cernereServiceToken, facilityId: config.facilityId }),
+      enrollment,
+      key: config.templateKey,
+      modelId: 'insightface/glintr100@1',
+      reviewerUserId: config.cernereReviewerUserId,
+      syncNow: syncTemplatesNow,
+    }),
+    enrollment,
+    cernereBaseUrl: config.cernereBaseUrl,
+    serviceToken: config.cernereServiceToken,
+    facilityId: config.facilityId,
+    staffRoles: config.staffRoles,
+    shotsRequired: 6,
+  }));
+}
 if (config.aedilisBaseUrl && config.aedilisGatewayToken) setInterval(() => { void retryOutbox(db, config.aedilisBaseUrl, config.aedilisGatewayToken); }, 30_000).unref?.();
 rotateFaceEvents(db, config.eventRetentionDays);
 setInterval(() => rotateFaceEvents(db, config.eventRetentionDays), 86_400_000).unref?.();

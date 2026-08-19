@@ -9,6 +9,7 @@ Bibliotheca と同パターン。
 | key | 用途 | 供給 |
 |---|---|---|
 | `CERNERE_SERVICE_TOKEN` | Cernere passkey export 用 admin Bearer | Infisical |
+| `CERNERE_FACE_PHOTO_TOKEN` | 顔写真取得・pending 審査用 Bearer (scope `face-photo:read` / `face-photo:manage`)。export 用とは別 token | Infisical |
 | `OSTIARIUS_PRIVATE_KEY` | Ed25519 秘密鍵 (PKCS#8 PEM)。本番はこれを inject | Infisical |
 | `AEDILIS_ADMIN_TOKEN` | 公開鍵 自己登録の admin Bearer | Infisical |
 | `CLOUDFLARE_DNS_API_TOKEN` | ACME DNS-01 の TXT 操作 (CLI 専用) | Infisical |
