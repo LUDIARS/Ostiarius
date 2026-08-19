@@ -13,7 +13,7 @@ passkey export ([cernere-passkey-export.md](cernere-passkey-export.md)) と同�
 - res:
   ```jsonc
   { "modelId": "insightface/glintr100@1",
-    "templates": [ { "userId", "template": "base64(AES-GCM ct)", "keyId", "modelId", "quality", "version", "enrolledAt", "revoked": false } ],
+    "templates": [ { "userId", "template": "base64(AES-GCM ct)", "keyId", "modelId", "quality", "version", "enrolledAt", "revoked": false, "state": "active" } ],
     "revoked": [ { "userId", "version" } ] }
   ```
 - `template` は Cernere 保存時の暗号文をそのまま返さない: Cernere は保存鍵で復号し、
@@ -21,6 +21,8 @@ passkey export ([cernere-passkey-export.md](cernere-passkey-export.md)) と同�
   Cernere の保存鍵は Ostiarius に渡らない。
 - 全量スナップショット (passkey export と同じ)。`revoked` は直近 30 日分の tombstone。
 - facility の在籍者だけを返す (Cernere の organization / facility 所属で絞る)。
+- `templates` は `state: "active"` のテンプレートだけを返し、各要素に `state` を必ず含める。
+  Ostiarius は状態を確認できないテンプレートも照合キャッシュへ入れない。
 
 ## `PUT /api/identity/face-template`
 - req: `{ userId, template: base64(float32[512]), modelId, quality, facilityId, enrolledBy, consentId }`

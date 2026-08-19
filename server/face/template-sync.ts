@@ -42,10 +42,9 @@ function validTemplate(value: ExportedTemplate): value is ValidTemplate {
 
 /**
  * 照合に載せてよいのは active だけ (二重防御)。
- * Cernere の export は state='active' に絞っている
- * (Cernere/server/src/identity/face-template-store.ts:179) が、
- * 写真由来の pending や state を欠く不完全な応答が万一混ざっても、
- * 施設キャッシュへ入れない。Cernere との現在の export 契約では state は必須である。
+ * Cernere の export は既に state='active' で絞り込むが、
+ * 写真由来の pending が万一混ざっても施設キャッシュへ入れない。
+ * 状態を確認できないテンプレートも照合へ流さない。
  */
 function isActiveState(value: unknown): boolean {
   return value === 'active';

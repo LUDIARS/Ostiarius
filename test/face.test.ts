@@ -44,6 +44,24 @@ describe('face domain', () => {
       expect(db.prepare('SELECT user_id FROM face_templates ORDER BY user_id').all()).toEqual([{ user_id: 'kept' }]);
     } finally { globalThis.fetch = original; }
   });
+  it('keeps only explicitly active templates from a Cernere response', async () => {
+    const db = openDb(':memory:'); const key = Buffer.alloc(32, 4);
+    const embedding = new Float32Array(512); embedding[2] = 1;
+    const wire = encryptFaceTemplate(embedding, key).toString('base64');
+    const original = globalThis.fetch;
+    globalThis.fetch = async () => new Response(JSON.stringify({
+      templates: [
+        { userId: 'active', template: wire, modelId: 'm', quality: .9, version: 1, enrolledAt: 1, state: 'active' },
+        { userId: 'no-state', template: wire, modelId: 'm', quality: .9, version: 1, enrolledAt: 1 },
+        { userId: 'pending', template: wire, modelId: 'm', quality: .9, version: 1, enrolledAt: 1, state: 'pending' },
+      ],
+      revoked: [],
+    }));
+    try {
+      await expect(syncFaceTemplates({ db, baseUrl: 'https://cernere.example', serviceToken: 'secret', facilityId: 'f', key })).resolves.toEqual({ ok: true, synced: 1 });
+      expect(db.prepare('SELECT user_id FROM face_templates ORDER BY user_id').all()).toEqual([{ user_id: 'active' }]);
+    } finally { globalThis.fetch = original; }
+  });
   it('issues only after three passive, unambiguous frames', async () => {
     const db = openDb(':memory:'); const sessions = new IdentitySessionStore(); const session = sessions.create();
     const embedding = new Float32Array(512); embedding[0] = 1;
