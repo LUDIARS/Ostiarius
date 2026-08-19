@@ -45,7 +45,7 @@ function enrollRouter(staff: StaffSessionStore, enrollment: EnrollmentSessionSto
   router.route('/', makeIdentityEnrollRouter({
     db: openDb(':memory:'), sidecar, staff, enrollment, key: KEY,
     modelId: 'insightface/glintr100@1', source: 'cernere',
-    baseUrl: 'https://cernere.example', serviceToken: 'service-token', facilityId: 'facility-1',
+    baseUrl: 'https://cernere.example', serviceToken: async () => 'service-token', facilityId: 'facility-1',
   }));
   return router;
 }

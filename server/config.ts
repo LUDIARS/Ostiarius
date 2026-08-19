@@ -51,6 +51,9 @@ export interface OstiariusConfig {
   facilityId: string;
   cernereBaseUrl: string;
   cernereFrontendUrl: string;
+  /** CERNERE_SERVICE_TOKEN — 手で発行した固定 service Bearer (任意)。
+   *  Cernere の project token は TTL 60 分なので、これは運用者の一時確認用の逃げ道であって
+   *  常用しない。空なら project client credential から都度取り直す (cernere-service-token.ts)。 */
   cernereServiceToken: string;
   /** CERNERE_FACE_PHOTO_TOKEN — 顔写真取得・審査用 Bearer (scope face-photo:read / face-photo:manage)。
    *  Cernere の service-scope-auth は project token を拒否し tool_client の scope か admin user token しか
@@ -79,11 +82,11 @@ export interface OstiariusConfig {
   wifiSsid: string;
   /** OSTIARIUS_WIFI_PASSWORD — 同上のパスワード (空可、SSID が空ならどのみち未使用) */
   wifiPassword: string;
-  /** OSTIARIUS_CERNERE_PROJECT_CLIENT_ID — vantan_user プロフィール読取用 Cernere project client_id
-   *  (空なら vantan-user-client.ts の createVantanUserClient が null を返し enrichment を丸ごとスキップする。
-   *   モバイルチェックイン本体 (login + attestation + Aedilis verify) には影響しない) */
+  /** CERNERE_PROJECT_CLIENT_ID — Excubitor が起動ごとに注入する project client_id
+   *  (catalog の cernere_launch_credentials 由来。GLab / Volputas / Aedilis と同じ名前)。
+   *  service token の取得元であり、vantan_user プロフィール読取にも使う。 */
   cernereProjectClientId: string;
-  /** OSTIARIUS_CERNERE_PROJECT_CLIENT_SECRET — 同上の client_secret (secret) */
+  /** CERNERE_PROJECT_CLIENT_SECRET — 同上の client_secret (secret) */
   cernereProjectClientSecret: string;
   /** OSTIARIUS_LEGACY_METHODS — 明示的に許可した旧来の本人確認経路。既定は全て無効。 */
   legacyMethods: readonly string[];
@@ -108,13 +111,13 @@ export function loadConfig(): OstiariusConfig {
   const cernereFrontendUrl = configuredFrontendUrl
     ? normalizeHttpOrigin('CERNERE_FRONTEND_URL', configuredFrontendUrl)
     : normalizeHttpOrigin('CERNERE_BASE_URL', new URL(cernereBaseUrl).origin);
-  return {
+  const config: OstiariusConfig = {
     port: Number(optionalEnv('OSTIARIUS_PORT', '17590')),
     lanId: requireEnv('OSTIARIUS_LAN_ID'),
     facilityId: requireEnv('OSTIARIUS_FACILITY_ID'),
     cernereBaseUrl,
     cernereFrontendUrl,
-    cernereServiceToken: requireEnv('CERNERE_SERVICE_TOKEN'),
+    cernereServiceToken: optionalEnv('CERNERE_SERVICE_TOKEN', ''),
     // 写真は個人データそのもので、export 用 token に暗黙で権限を足したくない。
     // 未設定なら審査経路を公開しない (起動は止めない — 出席確認そのものは影響を受けない)。
     cernereFacePhotoToken: optionalEnv('CERNERE_FACE_PHOTO_TOKEN', ''),
@@ -138,8 +141,8 @@ export function loadConfig(): OstiariusConfig {
     wifiPassword: optionalEnv('OSTIARIUS_WIFI_PASSWORD', ''),
     // vantan_user プロフィール enrichment も任意機能。 未設定は起動を止めない
     // (createVantanUserClient 側が null を返し、 呼び出し側が enrichment をスキップする)。
-    cernereProjectClientId: optionalEnv('OSTIARIUS_CERNERE_PROJECT_CLIENT_ID', ''),
-    cernereProjectClientSecret: optionalEnv('OSTIARIUS_CERNERE_PROJECT_CLIENT_SECRET', ''),
+    cernereProjectClientId: optionalEnv('CERNERE_PROJECT_CLIENT_ID', ''),
+    cernereProjectClientSecret: optionalEnv('CERNERE_PROJECT_CLIENT_SECRET', ''),
     // session/password は passkey より弱い互換経路なので、運用者の明示設定が無ければ公開しない。
     legacyMethods: optionalEnv('OSTIARIUS_LEGACY_METHODS', '')
       .split(',')
@@ -158,4 +161,22 @@ export function loadConfig(): OstiariusConfig {
     eventRetentionDays: Number(optionalEnv('OSTIARIUS_EVENT_RETENTION_DAYS', '90')),
     dailyOverrideLimit: Number(optionalEnv('OSTIARIUS_STAFF_OVERRIDE_DAILY_LIMIT', '20')),
   };
+  assertCernereServiceCredentials(config);
+  return config;
+}
+
+/**
+ * Cernere の service Bearer を用意できるかを起動時に確かめる。
+ *
+ * 通常は Excubitor が注入する project client credential から都度取り直す。
+ * 手発行の固定 token だけでも動くが、TTL 60 分で失効するため一時確認用。
+ * どちらも無ければ passkey 公開鍵も顔テンプレートも取れないので起動を止める。
+ */
+function assertCernereServiceCredentials(config: OstiariusConfig): void {
+  if (config.cernereProjectClientId && config.cernereProjectClientSecret) return;
+  if (config.cernereServiceToken) return;
+  throw new Error(
+    'CERNERE_PROJECT_CLIENT_ID / CERNERE_PROJECT_CLIENT_SECRET (Excubitor が注入) か '
+    + 'CERNERE_SERVICE_TOKEN のどちらかが必要です',
+  );
 }

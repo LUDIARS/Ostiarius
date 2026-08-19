@@ -17,7 +17,9 @@
 | `FACE_TEMPLATE_DISTRIBUTION_KEYS` | Infisical Cernere | `{"<facilityId>":"<OSTIARIUS_TEMPLATE_KEY と同じ base64>"}` | [ ] |
 | `CHECKIN_MIN_ASSURANCE` | Aedilis env | 既定 `medium` (パスキー/顔を受理、legacy `low` は拒否) | [ ] |
 
-既存 (`CERNERE_SERVICE_TOKEN` / `OSTIARIUS_PRIVATE_KEY` / `AEDILIS_ADMIN_TOKEN` / RP ID / origin) は `docs/E2E-checkin.md` §B の通り。
+既存 (`CERNERE_PROJECT_CLIENT_ID` / `CERNERE_PROJECT_CLIENT_SECRET` または一時用の
+`CERNERE_SERVICE_TOKEN`、`OSTIARIUS_PRIVATE_KEY`、`AEDILIS_ADMIN_TOKEN`、RP ID / origin) は
+`docs/E2E-checkin.md` §B の通り。
 
 ### A-2. face-sidecar (kiosk ホスト)
 

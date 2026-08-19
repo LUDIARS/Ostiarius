@@ -2,13 +2,14 @@
 //
 // CONTRACTS.md §2 / §3:
 //   起動時 + 定期 (default 15min) に
-//     GET {CERNERE_BASE_URL}/api/auth/passkey/export  (Bearer CERNERE_SERVICE_TOKEN)
+//     GET {CERNERE_BASE_URL}/api/auth/passkey/export  (Bearer service token provider)
 //   → credentials テーブルへ upsert。
 //   ネット不通時は前回キャッシュで継続 (warn ログのみ、 hard fail しない)。
 //
 // オフライン検証 (= 家からは LAN に届かない) を成立させるための土台。
 
 import type Database from 'better-sqlite3';
+import type { ServiceTokenProvider } from './cernere-service-token.ts';
 import { countCredentials, upsertCredential } from './db.ts';
 
 interface ExportedCredential {
@@ -27,7 +28,7 @@ interface ExportResponse {
 export interface SyncOptions {
   db: Database.Database;
   cernereBaseUrl: string;
-  serviceToken: string;
+  serviceToken: ServiceTokenProvider;
   intervalMs: number;
 }
 
@@ -46,7 +47,7 @@ export async function syncOnce(opts: SyncOptions): Promise<{ ok: boolean; synced
   const url = `${opts.cernereBaseUrl}/api/auth/passkey/export`;
   try {
     const res = await fetch(url, {
-      headers: { authorization: `Bearer ${opts.serviceToken}` },
+      headers: { authorization: `Bearer ${await opts.serviceToken()}` },
     });
     if (!res.ok) {
       throw new Error(`export failed: HTTP ${res.status}`);

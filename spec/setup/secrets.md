@@ -8,7 +8,8 @@ Bibliotheca と同パターン。
 
 | key | 用途 | 供給 |
 |---|---|---|
-| `CERNERE_SERVICE_TOKEN` | Cernere passkey export 用 admin Bearer | Infisical |
+| `CERNERE_PROJECT_CLIENT_SECRET` | Cernere project client credential の secret。service token はここから都度取り直す (通常は Excubitor が起動ごとに注入するので Infisical には置かない) | Excubitor / Infisical |
+| `CERNERE_SERVICE_TOKEN` | 手発行の固定 service Bearer (TTL 60 分、一時確認用) | Infisical |
 | `CERNERE_FACE_PHOTO_TOKEN` | 顔写真取得・pending 審査用 Bearer (scope `face-photo:read` / `face-photo:manage`)。export 用とは別 token | Infisical |
 | `OSTIARIUS_PRIVATE_KEY` | Ed25519 秘密鍵 (PKCS#8 PEM)。本番はこれを inject | Infisical |
 | `AEDILIS_ADMIN_TOKEN` | 公開鍵 自己登録の admin Bearer | Infisical |
@@ -24,9 +25,12 @@ Bibliotheca と同パターン。
 - `name: "Ostiarius"`、`secretsPath: ".env.secrets"`、`dotenvPath: ".env"`。
 - `defaultSiteUrl: "https://infisical.vtn-game.com"`、`defaultEnvironment: "dev"`。
 - `required.production`: `OSTIARIUS_LAN_ID` / `OSTIARIUS_FACILITY_ID` / `CERNERE_BASE_URL`
-  / `CERNERE_SERVICE_TOKEN` / `OSTIARIUS_RP_ID` / `OSTIARIUS_PWA_ORIGIN` /
+  / `OSTIARIUS_RP_ID` / `OSTIARIUS_PWA_ORIGIN` /
   `OSTIARIUS_KIOSK_TOKEN` / `OSTIARIUS_PRIVATE_KEY`
   (本番は秘密鍵を inject、平文ファイルを使わない)。
+  `CERNERE_SERVICE_TOKEN` は required に含めない — Excubitor が注入する
+  `CERNERE_PROJECT_CLIENT_ID` / `_SECRET` から取り直すのが通常経路で、固定 token は
+  それが無い手動起動のときだけ使う。
 
 ## 取得 / inject
 

@@ -5,7 +5,10 @@ P3 で `Cernere/spec/feature/face-template-store.md` として起こす (本フ�
 passkey export ([cernere-passkey-export.md](cernere-passkey-export.md)) と同じ Bearer / 同期方式。
 
 ## 認証
-- service 呼び出し (export / roster): `Authorization: Bearer {CERNERE_SERVICE_TOKEN}` (scope `face-template:export`, `roster:read`)
+- service 呼び出し (export / roster): `Authorization: Bearer {service token}`
+  (scope `face-template:export`, `roster:read`)。通常は
+  `CERNERE_PROJECT_CLIENT_ID` / `CERNERE_PROJECT_CLIENT_SECRET` から都度取得し、
+  `CERNERE_SERVICE_TOKEN` は手動確認時の固定Bearer代替としてのみ使う。
 - 生徒本人の操作 (同意・撤回): 生徒の access token (kiosk では authCode → `POST /api/auth/code/exchange` で一時取得、保存しない)
 - 登録 (PUT template): service token + `enrolledBy` (職員 userId) 必須
 

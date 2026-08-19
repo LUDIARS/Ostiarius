@@ -1,5 +1,6 @@
 import type Database from 'better-sqlite3';
 import { decryptFaceTemplate, deleteFaceTemplate, listFaceTemplates, upsertFaceTemplate } from '../db.ts';
+import type { ServiceTokenProvider } from '../cernere-service-token.ts';
 
 interface ExportedTemplate {
   userId?: unknown;
@@ -21,7 +22,7 @@ interface TemplateExportResponse {
 export interface FaceTemplateSyncOptions {
   db: Database.Database;
   baseUrl: string;
-  serviceToken: string;
+  serviceToken: ServiceTokenProvider;
   facilityId: string;
   key: Buffer;
 }
@@ -55,7 +56,7 @@ export async function syncFaceTemplates(options: FaceTemplateSyncOptions): Promi
   const url = new URL('/api/identity/face-template/export', options.baseUrl);
   url.searchParams.set('facilityId', options.facilityId);
   try {
-    const response = await fetch(url, { headers: { authorization: `Bearer ${options.serviceToken}` } });
+    const response = await fetch(url, { headers: { authorization: `Bearer ${await options.serviceToken()}` } });
     if (!response.ok) throw new Error(`face template export failed: HTTP ${response.status}`);
     const body = await response.json() as TemplateExportResponse;
     const templates = Array.isArray(body.templates) ? body.templates.filter(isTemplate) : [];

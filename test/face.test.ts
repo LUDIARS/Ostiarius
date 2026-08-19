@@ -40,7 +40,7 @@ describe('face domain', () => {
     const original = globalThis.fetch;
     globalThis.fetch = async () => new Response(JSON.stringify({ templates: [{ userId: 'kept', template: wire, modelId: 'm', quality: .9, version: 2, enrolledAt: 2, state: 'active' }], revoked: [{ userId: 'removed' }] }));
     try {
-      await expect(syncFaceTemplates({ db, baseUrl: 'https://cernere.example', serviceToken: 'secret', facilityId: 'f', key })).resolves.toEqual({ ok: true, synced: 1 });
+      await expect(syncFaceTemplates({ db, baseUrl: 'https://cernere.example', serviceToken: async () => 'secret', facilityId: 'f', key })).resolves.toEqual({ ok: true, synced: 1 });
       expect(db.prepare('SELECT user_id FROM face_templates ORDER BY user_id').all()).toEqual([{ user_id: 'kept' }]);
     } finally { globalThis.fetch = original; }
   });
@@ -58,7 +58,7 @@ describe('face domain', () => {
       revoked: [],
     }));
     try {
-      await expect(syncFaceTemplates({ db, baseUrl: 'https://cernere.example', serviceToken: 'secret', facilityId: 'f', key })).resolves.toEqual({ ok: true, synced: 1 });
+      await expect(syncFaceTemplates({ db, baseUrl: 'https://cernere.example', serviceToken: async () => 'secret', facilityId: 'f', key })).resolves.toEqual({ ok: true, synced: 1 });
       expect(db.prepare('SELECT user_id FROM face_templates ORDER BY user_id').all()).toEqual([{ user_id: 'active' }]);
     } finally { globalThis.fetch = original; }
   });

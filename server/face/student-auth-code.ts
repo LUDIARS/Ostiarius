@@ -8,9 +8,11 @@
 // 職員立会い enroll (routes/identity-enroll.ts) と撮り直し承認
 // (routes/identity-review.ts) の両方が使うため fetch をここに閉じる。
 
+import type { ServiceTokenProvider } from '../cernere-service-token.ts';
+
 export interface StudentAuthCodeOptions {
   baseUrl: string;
-  serviceToken: string;
+  serviceToken: ServiceTokenProvider;
 }
 
 export interface ResolvedStudent {
@@ -24,7 +26,7 @@ export async function exchangeStudentAuthCode(code: unknown, options: StudentAut
   try {
     const response = await fetch(`${options.baseUrl}/api/auth/code/exchange`, {
       method: 'POST',
-      headers: { authorization: `Bearer ${options.serviceToken}`, 'content-type': 'application/json' },
+      headers: { authorization: `Bearer ${await options.serviceToken()}`, 'content-type': 'application/json' },
       body: JSON.stringify({ code }),
     });
     const body = await response.json() as { userId?: unknown; accessToken?: unknown; expiresIn?: unknown };

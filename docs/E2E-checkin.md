@@ -99,7 +99,9 @@ cd Ostiarius
 export OSTIARIUS_LAN_ID=venue-1
 export OSTIARIUS_FACILITY_ID=room-101         # Aedilis の予約 facilityId と一致
 export CERNERE_BASE_URL=http://<cernere-host>:8080
-export CERNERE_SERVICE_TOKEN=<service token>  # passkey export 用
+export CERNERE_PROJECT_CLIENT_ID=<project client id>
+export CERNERE_PROJECT_CLIENT_SECRET=<project client secret>  # passkey export 用Bearerを都度取得
+# 手動の一時確認だけは CERNERE_SERVICE_TOKEN=<fixed service token> でもよい
 export OSTIARIUS_RP_ID=<Cernere と同 eTLD+1>
 export OSTIARIUS_PWA_ORIGIN=https://<Aedilis PWA origin>
 # 公開鍵の自己登録 (任意、 両方そろえば Aedilis の gateway_registry に自動登録)
@@ -146,5 +148,6 @@ npm start                                     # 既定 listen: 17590
 
 ### B-6. 後片付け
 
-- 検証用に発行した `AEDILIS_ADMIN_TOKEN` / `CERNERE_SERVICE_TOKEN` を失効。
+- 検証用に発行した `AEDILIS_ADMIN_TOKEN` / `CERNERE_SERVICE_TOKEN` を失効し、
+  使用した `CERNERE_PROJECT_CLIENT_SECRET` を安全に破棄する。
 - 検証用の予約 / 出席 / gateway 登録をクリーンアップ。

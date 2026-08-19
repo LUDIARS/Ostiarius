@@ -70,7 +70,7 @@ function reviewRouter(deps: {
     review: deps.review,
     enrollment: deps.enrollment,
     cernereBaseUrl: 'https://cernere.example',
-    serviceToken: 'service-token',
+    serviceToken: async () => 'service-token',
     facilityId: 'facility-1',
     staffRoles: ['staff', 'admin'],
     shotsRequired: 6,
@@ -93,7 +93,7 @@ describe('photo-seeded enrollment review', () => {
       revoked: [],
     }));
     try {
-      await syncFaceTemplates({ db, baseUrl: 'https://cernere.example', serviceToken: 'service-token', facilityId: 'facility-1', key: KEY });
+      await syncFaceTemplates({ db, baseUrl: 'https://cernere.example', serviceToken: async () => 'service-token', facilityId: 'facility-1', key: KEY });
     } finally {
       globalThis.fetch = original;
     }

@@ -15,7 +15,9 @@ Ostiarius が Cernere から passkey 公開鍵を引いて `credentials` テー�
 ## 振る舞い
 
 - **起動時に 1 回** + `OSTIARIUS_SYNC_INTERVAL_MS` (既定 15min) 毎に
-  `GET {CERNERE_BASE_URL}/api/auth/passkey/export` (Bearer `CERNERE_SERVICE_TOKEN`) を呼ぶ。
+  `GET {CERNERE_BASE_URL}/api/auth/passkey/export` (Bearer は service token) を呼ぶ。
+  service token は `CERNERE_PROJECT_CLIENT_ID` / `CERNERE_PROJECT_CLIENT_SECRET` から
+  `POST /api/auth/login` で取り、TTL (60 分) が切れる前に取り直す (`server/cernere-service-token.ts`)。
 - レスポンス `{ credentials: ExportedCredential[] }` の各件を、`userId` / `credentialId`
   / `publicKey` が揃ったものだけ `upsertCredential` する (1 トランザクション)。
 - `counter` 未指定は 0、`transports` 非配列は `[]` に正規化。

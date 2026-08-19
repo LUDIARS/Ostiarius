@@ -39,11 +39,13 @@ services:
     autostart: false
     env:
       OSTIARIUS_PORT: "17590"
+    # CERNERE_SERVICE_TOKEN は required_env に置かない。 Cernere の project token は TTL 60 分で、
+    # 静的に置くと 1 時間で失効する。 起動ごとに注入される CERNERE_PROJECT_CLIENT_ID /
+    # CERNERE_PROJECT_CLIENT_SECRET (下の cernere_launch_credentials 由来) から都度取り直す。
     required_env:
       - OSTIARIUS_LAN_ID
       - OSTIARIUS_FACILITY_ID
       - CERNERE_BASE_URL
-      - CERNERE_SERVICE_TOKEN
       - OSTIARIUS_RP_ID
       - OSTIARIUS_PWA_ORIGIN
       # 本人確認ゲート (P1/P2): kiosk 共有トークンと顔テンプレート暗号鍵は起動必須 (config.ts requireEnv)

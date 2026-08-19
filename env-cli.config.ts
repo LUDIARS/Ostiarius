@@ -8,7 +8,9 @@ import type { EnvCliConfig } from "../Cernere/packages/env-cli/src/types.js";
  * Aedilis / Memoria / Cernere / Bibliotheca と同パターン。
  *
  * secret 扱い ([[feedback_config_and_secrets]] — 平文保存しない):
- *   - CERNERE_SERVICE_TOKEN  : Cernere passkey export 用 admin Bearer
+ *   - CERNERE_PROJECT_CLIENT_SECRET : Cernere project client credential の secret。
+ *                               service token (passkey export / 顔テンプレート取得) はこれから都度取り直す。
+ *                               通常は Excubitor が起動ごとに注入するので Infisical には置かない
  *   - OSTIARIUS_KIOSK_TOKEN  : kiosk 管理 API 用共有トークン
  *   - OSTIARIUS_PRIVATE_KEY   : Ed25519 秘密鍵 (PKCS#8 PEM)。 本番はこれを inject し
  *                               平文ファイル (OSTIARIUS_KEY_PATH) を置かない
@@ -31,7 +33,9 @@ const config: EnvCliConfig = {
     // ─── Cernere 認証 (passkey export の取得元) ───────────────
     CERNERE_BASE_URL: "",
     CERNERE_FRONTEND_URL: "",
-    // CERNERE_SERVICE_TOKEN は secret — Infisical のみ (default を置かない)
+    // CERNERE_PROJECT_CLIENT_ID / _SECRET は Excubitor が起動ごとに注入する (catalog の
+    // cernere_launch_credentials)。 手動起動で使うときだけ Infisical に置く。
+    // CERNERE_SERVICE_TOKEN は TTL 60 分の固定 token — 一時確認用で常用しない
 
     // ─── WebAuthn (Cernere と同 eTLD+1) ──────────────────────
     OSTIARIUS_RP_ID: "",
@@ -84,7 +88,6 @@ const config: EnvCliConfig = {
       "OSTIARIUS_LAN_ID",
       "OSTIARIUS_FACILITY_ID",
       "CERNERE_BASE_URL",
-      "CERNERE_SERVICE_TOKEN",
       "OSTIARIUS_RP_ID",
       "OSTIARIUS_PWA_ORIGIN",
       "OSTIARIUS_KIOSK_TOKEN",

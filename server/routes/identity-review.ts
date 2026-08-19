@@ -17,6 +17,7 @@ import { isReviewCandidate, listReviewCandidates } from '../face/review-candidat
 import { exchangeStudentAuthCode } from '../face/student-auth-code.ts';
 import type { FaceReviewService } from '../face/review-service.ts';
 import type { StaffSessionStore } from '../face/staff-session.ts';
+import type { ServiceTokenProvider } from '../cernere-service-token.ts';
 
 const PHOTO_HEADERS = {
   // 承認画面の写真はキャッシュさせない (biometric-data-policy §1.1)。
@@ -45,7 +46,7 @@ export interface IdentityReviewDeps {
   review: FaceReviewService;
   enrollment: EnrollmentSessionStore;
   cernereBaseUrl: string;
-  serviceToken: string;
+  serviceToken: ServiceTokenProvider;
   facilityId: string;
   staffRoles: readonly string[];
   shotsRequired: number;

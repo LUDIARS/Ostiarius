@@ -33,7 +33,7 @@ export interface MobileCheckinDeps {
   lanId: string;
   challenges: ChallengeStore;
   privateKey: KeyObject;
-  /** 未構成 (OSTIARIUS_CERNERE_PROJECT_CLIENT_ID/_SECRET 未設定) なら null。 */
+  /** 未構成 (CERNERE_PROJECT_CLIENT_ID/_SECRET 未設定) なら null。 */
   vantanUserClient: VantanUserClientLike | null;
   /** 本人確認の発行監査を必ず記録する永続層。 */
   db: Database.Database;

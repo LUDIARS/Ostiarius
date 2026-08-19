@@ -57,7 +57,7 @@ Cernere の export は `active` のみ返すが、`server/face/template-sync.ts`
 
 - `CERNERE_FACE_PHOTO_TOKEN`: scope `face-photo:read` / `face-photo:manage` を持つ token。
   Cernere の `service-scope-auth.ts:41-44` は project token を拒否するため、export 用の
-  `CERNERE_SERVICE_TOKEN` とは別に払い出す。
+  project credential 由来Bearer（または固定tokenの代替経路）とは別に払い出す。
 - `OSTIARIUS_FACE_REVIEWER_USER_ID`: Cernere 上の審査者 userId。`face-photo-handler.ts:104-116`
   が `enrolledBy` と token の主体の一致を強制するため、kiosk のその場の職員 ID は載せられない。
   実際に承認した職員は Ostiarius の `face_events` に actor として残す (二重記録)。

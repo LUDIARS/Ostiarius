@@ -15,7 +15,9 @@ memory_links: []
 
 ## 手順 (チェックリスト)
 - [ ] kiosk ホスト (Windows PC or Raspberry Pi 5) に Ostiarius + face-sidecar を Excubitor 経由で起動、`/api/health` で `sidecar.ok` / `methods` を確認。
-- [ ] Infisical から `OSTIARIUS_TEMPLATE_KEY` / `CERNERE_SERVICE_TOKEN` / `OSTIARIUS_KIOSK_TOKEN` を inject。
+- [ ] Excubitor から `CERNERE_PROJECT_CLIENT_ID` / `CERNERE_PROJECT_CLIENT_SECRET`、Infisical から
+  `OSTIARIUS_TEMPLATE_KEY` / `OSTIARIUS_KIOSK_TOKEN` を inject（手動確認時だけ
+  `CERNERE_SERVICE_TOKEN` を代替使用）。
 - [ ] 職員 passkey で `/enroll` を開き、同意済み職員 3 名 + 生徒役 5 名を登録 (各 6 ショット)。重複警告が出ないこと。
 - [ ] Cernere export → Ostiarius sync でテンプレート件数が一致 (`faceTemplates`)。
 - [ ] 顔認証: 各人 5 回、issued までのフレーム数・時間・チャレンジ成功率を記録。誤拒否率 ≤ 5% を初期目標。

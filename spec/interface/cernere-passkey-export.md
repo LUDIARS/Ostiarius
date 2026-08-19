@@ -6,7 +6,10 @@ Ostiarius が Cernere から passkey 公開鍵を取り込むための外部接�
 ## エンドポイント
 
 - `GET {CERNERE_BASE_URL}/api/auth/passkey/export`
-- 認証: `Authorization: Bearer {CERNERE_SERVICE_TOKEN}` (admin/service Bearer)。
+- 認証: `Authorization: Bearer {service token}`。通常は
+  `CERNERE_PROJECT_CLIENT_ID` / `CERNERE_PROJECT_CLIENT_SECRET` で
+  `POST /api/auth/login` を呼んで取得・更新する。`CERNERE_SERVICE_TOKEN` は
+  手動確認時だけ使う固定Bearerの代替経路。
 - 呼び出し頻度: 起動時 1 回 + `OSTIARIUS_SYNC_INTERVAL_MS` 毎 (既定 15min)。
 
 ## Ostiarius が期待するレスポンス形

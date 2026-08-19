@@ -7,7 +7,8 @@ import type { StaffSessionStore } from '../face/staff-session.ts';
 import { CernereTemplateClient } from '../face/cernere-template-client.ts';
 import { FACE_CONSENT_POLICY_VERSION, FACE_CONSENT_TEXT } from '../face/consent-policy.ts';
 import { exchangeStudentAuthCode, type ResolvedStudent } from '../face/student-auth-code.ts';
-export function makeIdentityEnrollRouter(deps: { db: Database.Database; sidecar: FaceSidecar; staff: StaffSessionStore; enrollment: EnrollmentSessionStore; key: Buffer; modelId: string; source: 'cernere' | 'local'; baseUrl: string; serviceToken: string; facilityId: string }): Hono {
+import type { ServiceTokenProvider } from '../cernere-service-token.ts';
+export function makeIdentityEnrollRouter(deps: { db: Database.Database; sidecar: FaceSidecar; staff: StaffSessionStore; enrollment: EnrollmentSessionStore; key: Buffer; modelId: string; source: 'cernere' | 'local'; baseUrl: string; serviceToken: ServiceTokenProvider; facilityId: string }): Hono {
   const router = new Hono();
   router.post('/identity/enroll/start', async (c) => {
     const actor = deps.staff.get(c.req.header('x-ostiarius-staff')); const body = await c.req.json().catch(() => null) as { studentAuthCode?: unknown } | null;
@@ -77,7 +78,7 @@ export function makeIdentityEnrollRouter(deps: { db: Database.Database; sidecar:
   });
   return router;
 }
-async function resolveStudent(value: unknown, deps: { source: 'cernere' | 'local'; baseUrl: string; serviceToken: string }): Promise<ResolvedStudent | null> {
+async function resolveStudent(value: unknown, deps: { source: 'cernere' | 'local'; baseUrl: string; serviceToken: ServiceTokenProvider }): Promise<ResolvedStudent | null> {
   if (deps.source === 'local') {
     const userId = typeof value === 'string' && value.startsWith('local:') ? value.slice(6) : '';
     return userId ? { userId, accessToken: null } : null;
@@ -85,11 +86,11 @@ async function resolveStudent(value: unknown, deps: { source: 'cernere' | 'local
   return exchangeStudentAuthCode(value, deps);
 }
 
-function templates(deps: { baseUrl: string; serviceToken: string; facilityId: string }): CernereTemplateClient {
+function templates(deps: { baseUrl: string; serviceToken: ServiceTokenProvider; facilityId: string }): CernereTemplateClient {
   return new CernereTemplateClient({ baseUrl: deps.baseUrl, serviceToken: deps.serviceToken, facilityId: deps.facilityId });
 }
 
-async function recordConsent(studentAccessToken: string | null, deps: { baseUrl: string; serviceToken: string; facilityId: string }): Promise<string | null> {
+async function recordConsent(studentAccessToken: string | null, deps: { baseUrl: string; serviceToken: ServiceTokenProvider; facilityId: string }): Promise<string | null> {
   if (!studentAccessToken) return null;
   return templates(deps).recordConsent(studentAccessToken, FACE_CONSENT_POLICY_VERSION);
 }

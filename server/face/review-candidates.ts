@@ -13,6 +13,7 @@
 
 import type Database from 'better-sqlite3';
 import { listFaceTemplates } from '../db.ts';
+import type { ServiceTokenProvider } from '../cernere-service-token.ts';
 
 export interface ReviewCandidate {
   userId: string;
@@ -24,7 +25,7 @@ export interface ReviewCandidateOptions {
   db: Database.Database;
   baseUrl: string;
   /** roster は export と同じ service token で読む。 */
-  serviceToken: string;
+  serviceToken: ServiceTokenProvider;
   facilityId: string;
   /** 職員 role は候補から外す。 */
   staffRoles: readonly string[];
@@ -60,7 +61,7 @@ function reviewCandidate(user: RosterUser, enrolled: ReadonlySet<string>, staffR
 async function rosterUsers(options: ReviewCandidateOptions): Promise<RosterUser[]> {
   const url = new URL('/api/identity/roster', options.baseUrl);
   url.searchParams.set('facilityId', options.facilityId);
-  const response = await fetch(url, { headers: { authorization: `Bearer ${options.serviceToken}` } });
+  const response = await fetch(url, { headers: { authorization: `Bearer ${await options.serviceToken()}` } });
   if (!response.ok) throw new Error(`roster failed: HTTP ${response.status}`);
   const body = await response.json() as { users?: unknown };
   return Array.isArray(body.users) ? body.users.filter(isRosterUser) : [];

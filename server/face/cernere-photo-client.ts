@@ -10,7 +10,7 @@
 //       同 :217-236 / body {enrolledBy, facilityId, reason} — reason は 1〜256 文字必須
 //   いずれも scope が要る (face-photo:read / face-photo:manage)。Cernere の
 //   service-scope-auth.ts:41-44 は project token を拒否するため、export 用の
-//   CERNERE_SERVICE_TOKEN とは別の token を使う。
+//   project credential 由来Bearer（または固定tokenの代替経路）とは別の token を使う。
 //
 // 写真バイトはこのモジュールの戻り値としてのみ扱う。ファイルにも、ログにも、
 // エラー文言にも載せない (biometric-data-policy §1.1)。

@@ -56,7 +56,8 @@ assertion を検証する。
 | `OSTIARIUS_LAN_ID` | このゲートウェイの ID (attestation.lanId) | **必須** |
 | `OSTIARIUS_FACILITY_ID` | 紐づく施設 (attestation.placeId) | **必須** |
 | `CERNERE_BASE_URL` | passkey export の取得元 | **必須** |
-| `CERNERE_SERVICE_TOKEN` | export 用 admin/service Bearer | **必須** |
+| `CERNERE_PROJECT_CLIENT_ID` / `CERNERE_PROJECT_CLIENT_SECRET` | Cernere project client credential。Excubitor が起動ごとに注入する (catalog の `cernere_launch_credentials`)。service token はここから都度取り直す | **必須** (下記の代替可) |
+| `CERNERE_SERVICE_TOKEN` | 手発行の固定 service Bearer。**TTL 60 分**で失効するので運用者の一時確認用。上の client credential があれば不要 | _(空)_ |
 | `OSTIARIUS_RP_ID` | WebAuthn rpID (Cernere と同 eTLD+1) | **必須** |
 | `OSTIARIUS_PWA_ORIGIN` | CORS 許可 + expectedOrigin の PWA origin | **必須** |
 | `CERNERE_FRONTEND_URL` | パスキー登録QRの Cernere frontend origin | `CERNERE_BASE_URL` |
@@ -70,7 +71,7 @@ assertion を検証する。
 | `OSTIARIUS_SYNC_INTERVAL_MS` | passkey 同期間隔 | `900000` (15min) |
 | `OSTIARIUS_CHALLENGE_TTL_MS` | challenge TTL | `120000` (2min) |
 
-> **secret の供給**: `CERNERE_SERVICE_TOKEN` / `OSTIARIUS_KIOSK_TOKEN` / `OSTIARIUS_PRIVATE_KEY` /
+> **secret の供給**: `CERNERE_PROJECT_CLIENT_SECRET` / `OSTIARIUS_KIOSK_TOKEN` / `OSTIARIUS_PRIVATE_KEY` /
 > `AEDILIS_ADMIN_TOKEN` は平文保存しない方針 ([[feedback_config_and_secrets]])。
 > `env-cli.config.ts` に Infisical 設定を定義済み — `npx env-cli` で取得・inject する
 > (Aedilis / Memoria / Cernere と同パターン)。
@@ -147,7 +148,7 @@ attestation の検証鍵として、ゲートウェイの公開鍵を Aedilis �
 ## Cernere passkey export
 
 Ostiarius は起動時 + 15min 毎に `GET {CERNERE_BASE_URL}/api/auth/passkey/export`
-(Bearer `CERNERE_SERVICE_TOKEN`) を呼び、公開鍵を `credentials` テーブルへ upsert
+(Bearer は project client credential から取り直した service token) を呼び、公開鍵を `credentials` テーブルへ upsert
 する。ネット不通時は前回キャッシュで継続 (warn ログのみ、起動は止めない)。
 
 ## セキュリティ注記

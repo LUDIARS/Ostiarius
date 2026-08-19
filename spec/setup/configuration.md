@@ -21,7 +21,8 @@ env-cli (Infisical) 設定は `env-cli.config.ts`。
 | `OSTIARIUS_LAN_ID` | ゲートウェイ ID (attestation.lanId) | — | **必須** |
 | `OSTIARIUS_FACILITY_ID` | 紐づく施設 (attestation.placeId) | — | **必須** |
 | `CERNERE_BASE_URL` | passkey export 取得元 (末尾 `/` 除去) | — | **必須** |
-| `CERNERE_SERVICE_TOKEN` | export 用 admin/service Bearer (**secret**) | — | **必須** |
+| `CERNERE_PROJECT_CLIENT_ID` / `CERNERE_PROJECT_CLIENT_SECRET` | Cernere project client credential (**secret**)。Excubitor が起動ごとに注入する。service token はここから都度取り直す | — | **必須** (下記の代替可) |
+| `CERNERE_SERVICE_TOKEN` | 手発行の固定 service Bearer (**secret**)。**TTL 60 分**で失効するため一時確認用 | — | 任意 |
 | `CERNERE_FACE_PHOTO_TOKEN` | プロフィール顔写真の取得・審査用 Bearer。scope `face-photo:read` / `face-photo:manage` (**secret**) | `''` (空=写真審査を無効) | |
 | `OSTIARIUS_FACE_REVIEWER_USER_ID` | promote / reject の `enrolledBy` に載せる Cernere 上の審査者 userId。token の主体と一致必須 | `''` (空=写真審査を無効) | |
 | `OSTIARIUS_RP_ID` | WebAuthn rpID (Cernere と同 eTLD+1) | — | **必須** |

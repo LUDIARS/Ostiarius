@@ -12,9 +12,11 @@
 //
 // 埋め込み (template) は引数と body としてのみ扱い、ログには出さない。
 
+import type { ServiceTokenProvider } from '../cernere-service-token.ts';
+
 export interface CernereTemplateClientOptions {
   baseUrl: string;
-  serviceToken: string;
+  serviceToken: ServiceTokenProvider;
   facilityId: string;
 }
 
@@ -57,7 +59,7 @@ export class CernereTemplateClient {
     try {
       const response = await fetch(`${this.options.baseUrl}/api/identity/face-template`, {
         method: 'PUT',
-        headers: { authorization: `Bearer ${this.options.serviceToken}`, 'content-type': 'application/json' },
+        headers: { authorization: `Bearer ${await this.options.serviceToken()}`, 'content-type': 'application/json' },
         body: JSON.stringify({
           userId: input.userId,
           template: Buffer.from(input.template.buffer, input.template.byteOffset, input.template.byteLength).toString('base64'),

@@ -44,6 +44,7 @@ import { createCernerePhotoClient } from './face/cernere-photo-client.ts';
 import { CernereTemplateClient } from './face/cernere-template-client.ts';
 import { FaceReviewService } from './face/review-service.ts';
 import { makeIdentityReviewRouter } from './routes/identity-review.ts';
+import { createServiceTokenProvider, staticServiceTokenProvider, type ServiceTokenProvider } from './cernere-service-token.ts';
 
 const config = loadConfig();
 const db = openDb(config.dbPath);
@@ -60,17 +61,27 @@ const staffSessions = new StaffSessionStore();
 const enrollment = new EnrollmentSessionStore();
 const faceFlow = new FaceVerificationFlow({ db, sessions: identitySessions, sidecar, roster: () => buildFaceRoster(db, config.templateKey, 'insightface/glintr100@1'), threshold: config.faceMatchThreshold, margin: config.faceMargin, livenessThreshold: config.livenessThreshold, challengeRequired: config.faceChallengeRequired, subjectHint: (userId) => `ID / ${userId.slice(-2)}` });
 
+// service token は project client credential から都度取り直す (TTL 60 分)。
+// 固定 token は運用者の一時確認用の逃げ道として残す。
+const cernereServiceToken: ServiceTokenProvider = config.cernereProjectClientId && config.cernereProjectClientSecret
+  ? createServiceTokenProvider({
+    cernereBaseUrl: config.cernereBaseUrl,
+    clientId: config.cernereProjectClientId,
+    clientSecret: config.cernereProjectClientSecret,
+  })
+  : staticServiceTokenProvider(config.cernereServiceToken);
+
 startCernereSync({
   db,
   cernereBaseUrl: config.cernereBaseUrl,
-  serviceToken: config.cernereServiceToken,
+  serviceToken: cernereServiceToken,
   intervalMs: config.syncIntervalMs,
 });
 // 承認直後に施設キャッシュへ反映するため、定期同期と同じ処理を関数として持つ。
 const syncTemplatesNow = (): Promise<{ ok: boolean; synced: number }> => syncFaceTemplates({
   db,
   baseUrl: config.cernereBaseUrl,
-  serviceToken: config.cernereServiceToken,
+  serviceToken: cernereServiceToken,
   facilityId: config.facilityId,
   key: config.templateKey,
 });
@@ -92,7 +103,7 @@ if (!facePhotoClient) {
 }
 
 // vantan_user プロフィール enrichment (モバイルチェックイン確認画面の department/grade/name 表示) は
-// 任意機能 — OSTIARIUS_CERNERE_PROJECT_CLIENT_ID/_SECRET 未設定なら createVantanUserClient が null を
+// 任意機能 — CERNERE_PROJECT_CLIENT_ID/_SECRET 未設定なら createVantanUserClient が null を
 // 返し、 以後は enrichment を丸ごとスキップする (コアのチェックインは影響を受けない)。
 const vantanUserClient = createVantanUserClient({
   cernereBaseUrl: config.cernereBaseUrl,
@@ -102,7 +113,7 @@ const vantanUserClient = createVantanUserClient({
 if (vantanUserClient) {
   vantanUserClient.start();
 } else {
-  console.warn('[ostiarius] OSTIARIUS_CERNERE_PROJECT_CLIENT_ID/_SECRET 未設定 → vantan_user プロフィール enrichment は無効 (モバイルチェックインは department/grade/name を表示しません)');
+  console.warn('[ostiarius] CERNERE_PROJECT_CLIENT_ID/_SECRET 未設定 → vantan_user プロフィール enrichment は無効 (モバイルチェックインは department/grade/name を表示しません)');
 }
 
 const app = new Hono();
@@ -159,7 +170,7 @@ app.route('/', makeKioskRouter({
 }));
 app.route('/', makeIdentityFaceRouter({ db, flow: faceFlow, authorization: kioskAuthorization, privateKey: keyPair.privateKey, lanId: config.lanId, facilityId: config.facilityId, aedilisBaseUrl: config.aedilisBaseUrl, aedilisGatewayToken: config.aedilisGatewayToken }));
 app.route('/', makeIdentityStaffRouter({ db, challenges, lanId: config.lanId, facilityId: config.facilityId, rpId: config.rpId, pwaOrigin: config.pwaOrigin, privateKey: keyPair.privateKey, staffRoles: config.staffRoles, sessions: staffSessions, aedilisBaseUrl: config.aedilisBaseUrl, aedilisGatewayToken: config.aedilisGatewayToken, dailyOverrideLimit: config.dailyOverrideLimit }));
-app.route('/', makeIdentityEnrollRouter({ db, sidecar, staff: staffSessions, enrollment, key: config.templateKey, modelId: 'insightface/glintr100@1', source: config.faceTemplateSource, baseUrl: config.cernereBaseUrl, serviceToken: config.cernereServiceToken, facilityId: config.facilityId }));
+app.route('/', makeIdentityEnrollRouter({ db, sidecar, staff: staffSessions, enrollment, key: config.templateKey, modelId: 'insightface/glintr100@1', source: config.faceTemplateSource, baseUrl: config.cernereBaseUrl, serviceToken: cernereServiceToken, facilityId: config.facilityId }));
 if (facePhotoClient) {
   app.route('/', makeIdentityReviewRouter({
     db,
@@ -168,7 +179,7 @@ if (facePhotoClient) {
     review: new FaceReviewService({
       db,
       photos: facePhotoClient,
-      templates: new CernereTemplateClient({ baseUrl: config.cernereBaseUrl, serviceToken: config.cernereServiceToken, facilityId: config.facilityId }),
+      templates: new CernereTemplateClient({ baseUrl: config.cernereBaseUrl, serviceToken: cernereServiceToken, facilityId: config.facilityId }),
       enrollment,
       key: config.templateKey,
       modelId: 'insightface/glintr100@1',
@@ -177,7 +188,7 @@ if (facePhotoClient) {
     }),
     enrollment,
     cernereBaseUrl: config.cernereBaseUrl,
-    serviceToken: config.cernereServiceToken,
+    serviceToken: cernereServiceToken,
     facilityId: config.facilityId,
     staffRoles: config.staffRoles,
     shotsRequired: 6,
