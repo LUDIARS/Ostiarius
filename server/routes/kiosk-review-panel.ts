@@ -22,6 +22,7 @@ export const REVIEW_PANEL_HTML = `
         <label><input type="radio" name="review-mode" value="reenroll" checked> 追加で撮影して登録し直す（推奨）</label>
         <label><input type="radio" name="review-mode" value="promote-photo"> 写真からの登録をそのまま承認する</label>
       </fieldset>
+      <label>生徒認証コード（撮り直しの同意記録に必要） <input id="review-student-code" type="password" autocomplete="off" spellcheck="false"></label>
       <button id="review-approve">承認</button>
       <div id="review-consent" hidden>
         <p id="review-consent-text"></p>
@@ -43,6 +44,7 @@ const reviewDetail = document.querySelector('#review-detail');
 const reviewSubject = document.querySelector('#review-subject');
 const reviewPhoto = document.querySelector('#review-photo');
 const reviewApprove = document.querySelector('#review-approve');
+const reviewStudentCode = document.querySelector('#review-student-code');
 const reviewConsent = document.querySelector('#review-consent');
 const reviewConsentText = document.querySelector('#review-consent-text');
 const reviewConsentAccepted = document.querySelector('#review-consent-accepted');
@@ -99,6 +101,7 @@ async function openReviewCandidate(candidate) {
   reviewConsent.hidden = true;
   reviewShots.textContent = '';
   reviewReason.value = '';
+  reviewStudentCode.value = '';
   reviewReject.disabled = true;
   reviewSubject.textContent = candidate.hint;
   const response = await fetch('/identity/review/photo/' + encodeURIComponent(candidate.userId), { headers: reviewHeaders() });
@@ -117,10 +120,13 @@ function selectedReviewMode() {
 async function approveReview() {
   if (!reviewUserId || !staffSession) return;
   if (selectedReviewMode() === 'reenroll' && !reviewEnrollId) {
+    const studentAuthCode = reviewStudentCode.value.trim();
+    if (!studentAuthCode) { reviewStatus.textContent = '生徒認証コードを入力してください。'; return; }
     const started = await fetch('/identity/review/reenroll/start', {
-      method: 'POST', headers: reviewHeaders({ 'content-type': 'application/json' }), body: JSON.stringify({ userId: reviewUserId }),
+      method: 'POST', headers: reviewHeaders({ 'content-type': 'application/json' }), body: JSON.stringify({ userId: reviewUserId, studentAuthCode }),
     });
-    if (!started.ok) { reviewStatus.textContent = '撮り直しを開始できません。'; return; }
+    if (!started.ok) { reviewStatus.textContent = '撮り直しを開始できません。生徒認証コードを確認してください。'; return; }
+    reviewStudentCode.value = '';
     const session = await started.json();
     reviewEnrollId = session.enrollId;
     reviewShotsRequired = session.shots.required;

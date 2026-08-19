@@ -226,6 +226,37 @@ describe('photo-seeded enrollment review', () => {
     expect(response.status).toBe(404);
   });
 
+  it('requires the student authCode for a re-enrollment session (consent needs the student token)', async () => {
+    const db = openDb(':memory:');
+    const photos = photoClientStub();
+    const staff = new StaffSessionStore();
+    const enrollment = new EnrollmentSessionStore();
+    const review = new FaceReviewService({
+      db, photos, templates: templateClientStub(), enrollment, key: KEY, modelId: MODEL_ID,
+      reviewerUserId: 'reviewer-1', syncNow: async () => ({ ok: true, synced: 0 }),
+    });
+    const router = reviewRouter({ photos, review, db, enrollment, staff });
+    const token = staff.create('staff-1');
+    const original = globalThis.fetch;
+    globalThis.fetch = (async () => new Response(
+      JSON.stringify({ userId: 'other-student', accessToken: 'student-access', expiresIn: 900 }),
+      { status: 200 },
+    )) as typeof fetch;
+    const start = async (body: unknown): Promise<Response> => router.request('/identity/review/reenroll/start', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-ostiarius-staff': token },
+      body: JSON.stringify(body),
+    });
+    try {
+      // コード無しでは開始できない (service token で同意を代筆させないため)。
+      expect((await start({ userId: 'student-1' })).status).toBe(401);
+      // 交換結果が審査対象と別人なら 409。
+      expect((await start({ userId: 'student-1', studentAuthCode: 'code-1' })).status).toBe(409);
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+
   it('requires a staff session for every review route', async () => {
     const db = openDb(':memory:');
     const photos = photoClientStub();

@@ -14,6 +14,7 @@ import { FACE_CONSENT_POLICY_VERSION, FACE_CONSENT_TEXT } from '../face/consent-
 import type { CernerePhotoClient, PromoteMode } from '../face/cernere-photo-client.ts';
 import type { EnrollmentSessionStore } from '../face/enrollment-session.ts';
 import { isReviewCandidate, listReviewCandidates } from '../face/review-candidates.ts';
+import { exchangeStudentAuthCode } from '../face/student-auth-code.ts';
 import type { FaceReviewService } from '../face/review-service.ts';
 import type { StaffSessionStore } from '../face/staff-session.ts';
 
@@ -109,12 +110,19 @@ export function makeIdentityReviewRouter(deps: IdentityReviewDeps): Hono {
   router.post('/identity/review/reenroll/start', async (c) => {
     const actor = actorOf(c.req.header('x-ostiarius-staff'));
     if (!actor) return c.json({ error: 'staff_unauthorized' }, 401);
-    const body = await c.req.json().catch(() => null) as { userId?: unknown } | null;
+    const body = await c.req.json().catch(() => null) as { userId?: unknown; studentAuthCode?: unknown } | null;
     if (typeof body?.userId !== 'string' || !body.userId) return c.json({ error: 'bad_request' }, 400);
     const candidate = await hasCandidate(body.userId);
     if (candidate === 'unavailable') return c.json({ error: 'roster_unavailable' }, 503);
     if (candidate === 'absent') return c.json({ error: 'candidate_not_found' }, 404);
-    const enrollId = deps.enrollment.start(body.userId, actor);
+    // 撮り直しも同意記録を伴うため、生徒本人の authCode を要求する。
+    // 同意は本人 token でしか記録できず、service token では代筆できない。
+    const student = await exchangeStudentAuthCode(body.studentAuthCode, {
+      baseUrl: deps.cernereBaseUrl, serviceToken: deps.serviceToken,
+    });
+    if (!student) return c.json({ error: 'student_auth_failed' }, 401);
+    if (student.userId !== body.userId) return c.json({ error: 'student_mismatch' }, 409);
+    const enrollId = deps.enrollment.start(body.userId, actor, student.accessToken);
     return c.json({
       enrollId,
       consent: { policyVersion: FACE_CONSENT_POLICY_VERSION, text: FACE_CONSENT_TEXT },

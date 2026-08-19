@@ -4,7 +4,7 @@
 // (face/review-service.ts) の両方が使うため、fetch をここ 1 箇所に閉じる。
 //
 // 契約: Cernere/server/src/http/face-template-handler.ts:54-63
-//   - POST /api/identity/face-consent      -> { consentId, at }
+//   - POST /api/identity/face-consent      -> { consentId, at }  ※生徒本人 token
 //   - PUT  /api/identity/face-template     -> { version }
 //     body {userId, template: base64(float32[512]), modelId, quality, facilityId, enrolledBy, consentId}
 //     Cernere/server/src/identity/face-template-store.ts:104-141 は state='active' で保存する
@@ -31,13 +31,19 @@ export interface PutTemplateInput {
 export class CernereTemplateClient {
   constructor(private readonly options: CernereTemplateClientOptions) {}
 
-  /** 同意を記録して consentId を得る。失敗は null (呼び出し側が 503 に落とす)。 */
-  async recordConsent(userId: string, policyVersion: string): Promise<string | null> {
+  /**
+   * 同意を記録して consentId を得る。失敗は null (呼び出し側が 503 に落とす)。
+   *
+   * 同意は本人しか記録できない (Cernere は authHeader の sub を同意者にする)。
+   * kiosk は生徒の authCode を `POST /api/auth/code/exchange` で交換した
+   * 短命 accessToken を渡す。service token では 401 になる。
+   */
+  async recordConsent(studentAccessToken: string, policyVersion: string): Promise<string | null> {
     try {
       const response = await fetch(`${this.options.baseUrl}/api/identity/face-consent`, {
         method: 'POST',
-        headers: { authorization: `Bearer ${this.options.serviceToken}`, 'content-type': 'application/json' },
-        body: JSON.stringify({ userId, policyVersion, facilityId: this.options.facilityId }),
+        headers: { authorization: `Bearer ${studentAccessToken}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ policyVersion, facilityId: this.options.facilityId }),
       });
       const body = await response.json() as { consentId?: unknown };
       return response.ok && typeof body.consentId === 'string' ? body.consentId : null;

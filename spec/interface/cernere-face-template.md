@@ -6,7 +6,7 @@ passkey export ([cernere-passkey-export.md](cernere-passkey-export.md)) と同�
 
 ## 認証
 - service 呼び出し (export / roster): `Authorization: Bearer {CERNERE_SERVICE_TOKEN}` (scope `face-template:export`, `roster:read`)
-- 生徒本人の操作 (同意・撤回): 生徒の access token (kiosk では authCode → exchange で一時取得、保存しない)
+- 生徒本人の操作 (同意・撤回): 生徒の access token (kiosk では authCode → `POST /api/auth/code/exchange` で一時取得、保存しない)
 - 登録 (PUT template): service token + `enrolledBy` (職員 userId) 必須
 
 ## `GET /api/identity/face-template/export?facilityId=`
@@ -29,9 +29,20 @@ passkey export ([cernere-passkey-export.md](cernere-passkey-export.md)) と同�
   (転送は TLS、Cernere が保存鍵で暗号化して保存。平文は保存しない)
 - res: `{ version }`。`consentId` が有効でなければ 409 `consent_required`。
 
+## `POST /api/auth/code/exchange` (service token)
+- req: `{ code }` (生徒が自分で発行した authCode) → res `{ userId, accessToken, expiresIn }`
+- 無認可の `POST /api/auth/exchange` と違い **service token 必須**で、**refreshToken を返さない**。
+  共有端末である kiosk に 30 日有効な資格情報を残さないため、交換口を分けている。
+- authCode は one-time (Cernere が交換時に破棄)。`accessToken` は 15 分。
+- kiosk はこの `accessToken` を同意記録にだけ使い、端末へ保存しない。
+- Cernere 側の正本: `Cernere/spec/interface/auth-flows.md` 「共通: kiosk 向け限定交換」。
+
 ## `POST /api/identity/face-consent` (生徒 token)
 - req: `{ policyVersion, facilityId }` → res `{ consentId, at }`
+- **Authorization は生徒本人の access token**。同意者は token の主体から決まるため `userId` は送らない
+  (Cernere の schema は strict)。service token で同意を代筆させてはならない。
 - 同意文は Cernere が `GET /api/identity/face-consent/policy` で返す (version 付き、日本語)。
+- 撮り直し承認 (`/identity/review/reenroll/start`) も同意記録を伴うため、生徒の authCode を要求する。
 
 ## `DELETE /api/identity/face-template` (生徒 token) — 撤回。テンプレート削除 + tombstone + 同意 `revokedAt`。
 ## `DELETE /api/identity/face-template/:userId` (service + `enrolledBy`) — 職員による無効化 (理由必須)。
