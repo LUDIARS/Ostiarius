@@ -1,9 +1,25 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { getConnInfo } from '@hono/node-server/conninfo';
 import type { Context } from 'hono';
 import { getCookie, setCookie } from 'hono/cookie';
 
+import { isLoopbackAddress } from './loopback.ts';
+
 const KIOSK_SESSION_COOKIE = 'ostiarius_kiosk_session';
 const DEFAULT_SESSION_TTL_MS = 8 * 60 * 60 * 1000;
+
+/**
+ * 接続元アドレス。 HTTP サーバ実装に依存するのでここに閉じ込める。
+ * node-server 以外で動かしたとき (単体テストの `app.request()` 等) は
+ * 「不明」として null を返し、 loopback 扱いしない (fail-closed)。
+ */
+function remoteAddressOf(c: Context): string | null {
+  try {
+    return getConnInfo(c).remote.address ?? null;
+  } catch {
+    return null;
+  }
+}
 
 function secretsEqual(left: string, right: string): boolean {
   const leftDigest = createHash('sha256').update(left).digest();
@@ -23,6 +39,11 @@ export class KioskAuthorization {
   }
 
   isAuthorized(c: Context): boolean {
+    // 同一ホストのブラウザ (= kiosk 本体) はトークン無しで通す。 ブラウザはアドレスバーから
+    // 任意ヘッダを送れないため、 これが無いと同一デバイス運用で kiosk 画面を開けない。
+    // 共有トークンは LAN 内の他端末を締め出す用途として残る。
+    if (isLoopbackAddress(remoteAddressOf(c))) return true;
+
     const headerToken = c.req.header('x-ostiarius-kiosk');
     if (headerToken && secretsEqual(headerToken, this.sharedToken)) return true;
 

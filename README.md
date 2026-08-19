@@ -60,7 +60,7 @@ assertion を検証する。
 | `OSTIARIUS_RP_ID` | WebAuthn rpID (Cernere と同 eTLD+1) | **必須** |
 | `OSTIARIUS_PWA_ORIGIN` | CORS 許可 + expectedOrigin の PWA origin | **必須** |
 | `CERNERE_FRONTEND_URL` | パスキー登録QRの Cernere frontend origin | `CERNERE_BASE_URL` |
-| `OSTIARIUS_KIOSK_TOKEN` | `/kiosk` の共有トークン | **必須** |
+| `OSTIARIUS_KIOSK_TOKEN` | `/kiosk` の共有トークン (**LAN の他端末向け**。同一ホストの kiosk ブラウザは loopback 判定で素通し) | **必須** |
 | `OSTIARIUS_PRIVATE_KEY` | Ed25519 秘密鍵 (PKCS#8 PEM)。**本番は Infisical 経由で inject** (secret) | _(空)_ |
 | `OSTIARIUS_KEY_PATH` | Ed25519 秘密鍵の **dev 用** 永続ファイル (env 未設定時のみ。無ければ生成) | `data/gateway.key` |
 | `AEDILIS_BASE_URL` | 公開鍵 自己登録先の Aedilis base URL (#167) | _(空=手動)_ |

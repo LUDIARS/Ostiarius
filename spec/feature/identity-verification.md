@@ -146,7 +146,7 @@ Ludellus-Native `spec/feature/location-face-auth.md` §5 の指摘 (替え玉は
 | `OSTIARIUS_LEGACY_METHODS` | 有効化する互換 method (CSV: `session,password`) | _(空=無効)_ |
 | `OSTIARIUS_TEMPLATE_KEY` | ローカルテンプレートキャッシュ暗号化鍵 (secret、Infisical) | **必須 (顔有効時)** |
 | `OSTIARIUS_STAFF_ROLES` | override を許す Cernere ロール (CSV) | `staff,admin` |
-| `OSTIARIUS_KIOSK_TOKEN` | kiosk 画面/enroll 画面を開くための共有トークン (LAN 内でも他端末から叩けないように) | **必須** |
+| `OSTIARIUS_KIOSK_TOKEN` | kiosk 画面/enroll 画面を開くための共有トークン (LAN 内でも他端末から叩けないように)。**同一ホスト (loopback) からの接続はトークン不要** — kiosk は Ostiarius ホスト上のブラウザで動き (§5)、ブラウザはアドレスバーから `x-ostiarius-kiosk` ヘッダを送れないため。プロキシヘッダは見ない | **必須** |
 
 ## 9. 実装フェーズ
 
