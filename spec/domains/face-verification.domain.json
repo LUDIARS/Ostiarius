@@ -1,0 +1,25 @@
+{
+  "name": "face-verification",
+  "description": "顔テンプレートの暗号化キャッシュ、1:N照合、生体チャレンジ、ローカル推論sidecarと出席attestation送信を分離する本人確認ドメイン。",
+  "presetRules": [],
+  "templateRules": [],
+  "specRefs": [
+    "feature: 顔認証 + 生体性確認",
+    "feature: 顔テンプレート登録"
+  ],
+  "rationale": "生体情報を画像として永続化せず、照合・送信・外部連携を明確な境界で扱うため。",
+  "membership": [
+    {
+      "pathPattern": "(^|/)server/face/[^/]+$"
+    },
+    {
+      "pathPattern": "(^|/)server/routes/(?:identity|identity-enroll|identity-face|identity-review|identity-staff|kiosk-review-panel)\\.ts$"
+    },
+    {
+      "pathPattern": "(^|/)face-sidecar/(?:.*/)?[^/]+$"
+    },
+    {
+      "pathPattern": "(^|/)test/(?:face|face-review|identity|identity-enroll-consent|no-biometric-log)\\.test\\.ts$"
+    }
+  ]
+}

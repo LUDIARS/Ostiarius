@@ -1,0 +1,48 @@
+{
+  "name": "checkin-verification",
+  "description": "会場LANの中核: 事前同期した公開鍵だけで passkey assertion をオフライン検証し、challenge の TTL/1-shot consume で replay を防ぎ、検証 OK なら presence-attestation を発行する begin/finish 2ステップ経路。",
+  "presetRules": [],
+  "templateRules": [],
+  "membership": [
+    {
+      "pathPattern": "/server/routes/checkin\\.ts"
+    },
+    {
+      "pathPattern": "/server/challenge-store\\.ts"
+    },
+    {
+      "namePattern": "makeCheckinRouter"
+    },
+    {
+      "namePattern": "ChallengeStore"
+    },
+    {
+      "namePattern": "sweep"
+    },
+    {
+      "namePattern": "consume"
+    },
+    {
+      "namePattern": "^checkin"
+    },
+    {
+      "pathPattern": "(^|/)server/(?:passkey-checkin|challenge-store|kiosk-authorization|loopback)\\.ts$"
+    },
+    {
+      "pathPattern": "(^|/)server/routes/(?:checkin|kiosk)\\.ts$"
+    },
+    {
+      "pathPattern": "(^|/)test/(?:checkin\\.e2e|kiosk-loopback)\\.test\\.ts$"
+    },
+    {
+      "pathPattern": "(^|/)test/webauthn-soft-authenticator\\.ts$"
+    }
+  ],
+  "cardTemplate": "Summarise the \"checkin-verification\" domain: 会場LANの中核: 事前同期した公開鍵だけで passkey assertion をオフライン検証し、challenge の TTL/1-shot consume で replay を防ぎ、検証 OK なら presence-attestation を発行する begin/finish 2ステップ経路。",
+  "specRefs": [
+    "feature: チェックイン検証 (offline passkey assertion → attestation 発行)",
+    "interface: http-checkin",
+    "Ostiarius — 会場LANチェックインゲートウェイ / API"
+  ],
+  "rationale": "spec 上「中核機能」と明記され、assertion 検証 + challenge 状態遷移 + attestation 発行の入出力レッグをまとめる意味的単位。challenge-store は検証フローに従属するので同居。"
+}

@@ -1,0 +1,32 @@
+{
+  "name": "gateway-bootstrap",
+  "description": "起動シーケンスと HTTP 配線: env 解決 (必須未設定で exit)、Hono/CORS、health エンドポイント、各 router mount、Cernere sync/自己登録の起動、listen。全ドメインを束ねる合成層。",
+  "presetRules": [],
+  "templateRules": [],
+  "membership": [
+    {
+      "pathPattern": "/server/index\\.ts"
+    },
+    {
+      "pathPattern": "/server/config\\.ts"
+    },
+    {
+      "namePattern": "loadConfig"
+    },
+    {
+      "namePattern": "^serve$"
+    },
+    {
+      "namePattern": "^app$"
+    },
+    {
+      "pathPattern": "(^|/)server/(?:index|config)\\.ts$"
+    }
+  ],
+  "cardTemplate": "Summarise the \"gateway-bootstrap\" domain: 起動シーケンスと HTTP 配線: env 解決 (必須未設定で exit)、Hono/CORS、health エンドポイント、各 router mount、Cernere sync/自己登録の起動、listen。全ドメインを束ねる合成層。",
+  "specRefs": [
+    "Ostiarius — 会場LANチェックインゲートウェイ / アーキ / ファイル構成",
+    "Ostiarius — 会場LANチェックインゲートウェイ / config (env)"
+  ],
+  "rationale": "起動・設定解決・ルート合成という横断的関心。個別機能ドメインには属さない配線コードをまとめる (scene/runtime state ではなく静的な組み立て構造)。"
+}

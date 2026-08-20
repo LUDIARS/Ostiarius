@@ -1,0 +1,41 @@
+{
+  "name": "cernere-integration",
+  "description": "Cernere を情報源とする外部取り込み: 起動時+定期の passkey export 同期 (best-effort, 不通は前回キャッシュ継続) と、モバイルチェックイン表示用の vantan_user プロフィール enrichment クライアント。",
+  "presetRules": [],
+  "templateRules": [],
+  "membership": [
+    {
+      "pathPattern": "/server/cernere-sync\\.ts"
+    },
+    {
+      "pathPattern": "/server/vantan-user-client\\.ts"
+    },
+    {
+      "namePattern": "startCernereSync"
+    },
+    {
+      "namePattern": "createVantanUserClient"
+    },
+    {
+      "namePattern": "getVantanUserProfile"
+    },
+    {
+      "namePattern": "VantanUserClient"
+    },
+    {
+      "pathPattern": "(^|/)server/cernere-(?:sync|service-token)\\.ts$"
+    },
+    {
+      "pathPattern": "(^|/)server/vantan-user-client\\.ts$"
+    },
+    {
+      "pathPattern": "(^|/)test/(?:cernere-service-token|vantan-user-client)\\.test\\.ts$"
+    }
+  ],
+  "cardTemplate": "Summarise the \"cernere-integration\" domain: Cernere を情報源とする外部取り込み: 起動時+定期の passkey export 同期 (best-effort, 不通は前回キャッシュ継続) と、モバイルチェックイン表示用の vantan_user プロフィール enrichment クライアント。",
+  "specRefs": [
+    "feature: Cernere passkey 同期 (オフライン検証の土台)",
+    "interface: Cernere passkey export (連携先 — 取得)"
+  ],
+  "rationale": "Ostiarius がクライアントとなる Cernere 向け外部接点をまとめる。passkey export と profile enrichment はどちらも Cernere からの取得で、同期・エラー握り潰しの方針を共有する。"
+}

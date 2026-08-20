@@ -1,0 +1,40 @@
+{
+  "name": "mobile-checkin-fallback",
+  "description": "PC無し/未登録passkeyの来場者向けフォールバック: Wi-Fi QR 生成 + email/password ログイン → 同一署名形式の attestation 発行のオーケストレーション。passkey 経路より弱い本人確認をアクセシビリティとのトレードオフで許容。",
+  "presetRules": [],
+  "templateRules": [],
+  "membership": [
+    {
+      "pathPattern": "/server/mobile-checkin\\.ts"
+    },
+    {
+      "pathPattern": "/server/routes/mobile-checkin\\.ts"
+    },
+    {
+      "namePattern": "makeMobileCheckinRouter"
+    },
+    {
+      "namePattern": "loginAndAttest"
+    },
+    {
+      "namePattern": "qrToBuffer"
+    },
+    {
+      "namePattern": "MobileCheckin"
+    },
+    {
+      "pathPattern": "(^|/)server/mobile-checkin\\.ts$"
+    },
+    {
+      "pathPattern": "(^|/)server/routes/mobile-checkin\\.ts$"
+    },
+    {
+      "pathPattern": "(^|/)test/mobile-checkin\\.test\\.ts$"
+    }
+  ],
+  "cardTemplate": "Summarise the \"mobile-checkin-fallback\" domain: PC無し/未登録passkeyの来場者向けフォールバック: Wi-Fi QR 生成 + email/password ログイン → 同一署名形式の attestation 発行のオーケストレーション。passkey 経路より弱い本人確認をアクセシビリティとのトレードオフで許容。",
+  "specRefs": [
+    "Ostiarius / mobile-checkin フォールバック (PC/passkey無しでも email/password + WiFi QR で出席)"
+  ],
+  "rationale": "passkey 経路とは別ルートだが同じ attestation 形式に依存する代替チェックイン経路。Wi-Fi QR とパスワードログインという固有の関心事を持つ独立ドメイン。"
+}
