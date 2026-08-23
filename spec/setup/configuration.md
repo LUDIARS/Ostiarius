@@ -5,9 +5,9 @@ env-cli (Infisical) 設定は `env-cli.config.ts`。
 
 ## 前提
 
-- Node.js (CI は 24.14.1)。
+- Node.js 24 以降 (CI は 24.14.1、`package.json` の `engines` で宣言)。
 - 依存: `hono` / `@hono/node-server` / `@simplewebauthn/server` / `better-sqlite3` / `tsx`
-  (`package.json`)。`npm install` で導入 (`better-sqlite3` はネイティブビルドあり)。
+  (`package.json`)。`npm install` で導入 (`better-sqlite3` は N-API ネイティブ addon)。
 - 配置: 会場 LAN の PC / Raspberry Pi に置く (= 自宅から到達不能にするのが設計前提)。
 
 ## 環境変数
