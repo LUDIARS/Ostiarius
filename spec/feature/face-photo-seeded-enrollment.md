@@ -1,6 +1,11 @@
 # feature: プロフィール顔写真を種にした顔登録 + 名簿表示
 
-生徒が GLab のプロフィールに顔写真を 1 枚出すと、そこから抽出したテンプレートが
+> **2026-09-12 改訂**: 写真は Cernere を経由しない。アップロード先は **kiosk /enroll (LAN 内)** で、
+> 写真・pending テンプレートとも Ostiarius ローカルに封緘保存する
+> ([../plan/face-data-local-only.md](../plan/face-data-local-only.md))。以下の「GLab プロフィール」
+> 「Cernere に保存」は旧経路の記述で、§3 のフローを読み替える。
+
+生徒が kiosk の登録画面で顔写真を 1 枚出すと (旧: GLab プロフィール)、そこから抽出したテンプレートが
 **`pending` (出席照合に使えない状態)** で保管される。職員が実機で本人確認して
 `active` へ昇格させたときだけ、出席認証に載る。写真そのものは名簿・出席確認画面の
 表示に使う。
@@ -41,19 +46,19 @@
 ## 3. フロー
 
 ```
-[生徒: GLab プロフィールで顔写真を選択]
-  → [同意画面 (policyVersion 付き。保存すること・表示範囲・削除方法を明示)]
-  → [GLab → Cernere: 写真を封緘保存 (face_photos) + 抽出要求]
-  → [Cernere → 抽出 sidecar: 512d を得る。写真は表示用に保存、抽出フレームは破棄]
-  → [face_templates に state=pending で保存 (consentId 紐付け)]
-  → [生徒の画面: 「顔認証: 審査待ち」]
+[生徒: kiosk /enroll で顔写真を選択 (端末カメラ or 持ち込み画像)]
+  → [同意画面 (policyVersion 付き。保存すること・保存先が施設端末のみであること・表示範囲・削除方法を明示)]
+  → [kiosk → Cernere: 同意記録のみ (生徒 authCode → 本人 token)]
+  → [Ostiarius → face-sidecar (localhost): 512d を得る。写真はローカルに封緘保存、抽出フレームは破棄]
+  → [Ostiarius face_templates に state=pending で保存 (consentId 紐付け)]
+  → [kiosk 画面: 「顔認証: 審査待ち」]
 
 [職員: 実機 (kiosk /enroll) で承認]
   → [名簿から pending の生徒を開く → 画面に写真を表示]
   → [目の前の本人と照合 (人間の目)]
   → [承認: 追加ショットを撮って active を作り直す (既定) / 写真由来の pending を昇格]
-  → [却下: 写真と pending を同時に削除 + 却下理由を Cernere audit へ]
-  → [active になった時点で施設キャッシュへ即時 upsert]
+  → [却下: 写真と pending を同時に削除 + 却下理由を Ostiarius 監査ログへ (Cernere audit へは要約のみ)]
+  → [active になった時点で照合器の roster へ即時反映 (正本がローカルなので sync 不要)]
 ```
 
 - **却下理由は必須**。「他人の写真だった」を検知した記録が残らないと、同じ生徒が
