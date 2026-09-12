@@ -8,6 +8,8 @@ LUDIARS の出席チェックイン基盤の「会場側」コンポーネント
 > 補助経路が本人携帯端末の **パスキー** (Cernere 正本)、人手経路が職員 override。
 > 設計正本は [`spec/feature/identity-verification.md`](spec/feature/identity-verification.md)、
 > 生体情報の方針は [`spec/plan/biometric-data-policy.md`](spec/plan/biometric-data-policy.md)。
+> **2026-09-12**: 顔テンプレート・顔写真の正本は Ostiarius ローカル (施設外へ出さない)。Cernere は同意記録と失効指示のみ
+> ([`spec/plan/face-data-local-only.md`](spec/plan/face-data-local-only.md))。
 > 以下は現行実装 (パスキー LAN 検証) の説明で、P1〜P3 の実装計画は `spec/tasks/idv-*.md`。
 
 正本仕様は `Aedilis/checkin-spike/CONTRACTS.md` (§1 Attestation / §3 Ostiarius)。

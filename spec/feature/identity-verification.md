@@ -1,6 +1,9 @@
 # feature: 本人確認ゲート (顔認証 + パスキー) — Ostiarius の役割再設計
 
-**Status: Designed** (2026-08-16、Memoria #1048)
+**Status: Designed** (2026-08-16、Memoria #1048。2026-09-12 に顔データ保存先をローカル限定へ改訂)
+
+> **2026-09-12**: 顔テンプレート・顔写真の正本は **Ostiarius ローカル**。Cernere は同意記録と失効指示のみ持つ
+> ([../plan/face-data-local-only.md](../plan/face-data-local-only.md))。§2 / §3 はその方針で改訂済み。
 
 Ostiarius の役割を「会場 LAN 上の出席 API ゲートウェイ」から
 **「その場に本人がいることを強固に確認する本人確認ゲート」** へ再定義する。
@@ -31,9 +34,10 @@ Ostiarius の役割を「会場 LAN 上の出席 API ゲートウェイ」から
 ## 2. スコープ
 
 ### やること
-- 生徒の顔テンプレート (embedding) の登録・失効・同期 (写真は保存しない)
+- 生徒の顔テンプレート (embedding) とプロフィール顔写真 1 枚の **正本保持** (施設単位、暗号化、施設外へ出さない)
+- Cernere からの失効指示・同意記録の pull と執行
 - kiosk での 1:N 顔照合 + パッシブ/アクティブ生体性確認
-- 本人携帯パスキーによる代替 (Cernere が正本、Ostiarius はオフライン検証キャッシュ)
+- 本人携帯パスキーによる代替 (パスキーは Cernere が正本、Ostiarius はオフライン検証キャッシュ)
 - 職員 override と監査ログ
 - attestation への `method` / `assurance` 付与
 - 同意・保持・削除・復旧の仕様化 (plan/biometric-data-policy.md)
@@ -41,7 +45,8 @@ Ostiarius の役割を「会場 LAN 上の出席 API ゲートウェイ」から
 ### やらないこと
 - 学生端末のインカメ selfie を**主経路**にすること (写真提示・代返に弱い。将来のオプション扱い)
 - 顔からの属性推定・感情推定・追跡 (Vultus / Ludellus-Native の領分でもなく、Ostiarius では一切やらない)
-- 顔写真そのものの保存・閲覧機能 (職員向けサムネイルも持たない)
+- 顔写真の施設外への配布・表示 (職員の閲覧は LAN 内の Ostiarius からのみ。GLab / Cernere には置かない)
+- テンプレートの施設間共有 (別施設では再 enroll)
 - Cernere ログインの発行 (Ostiarius は attestation を返すだけ。ログインは Cernere)
 
 ## 3. 責務境界 (Ostiarius / Vultus / Cernere / Aedilis)
@@ -56,15 +61,15 @@ Ostiarius の役割を「会場 LAN 上の出席 API ゲートウェイ」から
                 ▼
              Aedilis (出席記録・attestation 検証・gateway registry)   ──▶ Memoria (出席イベント)
 
-Cernere: 同意記録 / 顔テンプレート正本 (暗号化 blob) / パスキー正本 / 失効 / export (passkey + face-template)
+Cernere: 同意記録 / 失効指示 (生体情報なし) / パスキー正本 / export (passkey + revocation + consent)
 Vultus : 関与しない (モデル取得・SHA 検証の運用パターンのみ参考)
 ```
 
 | 責務 | Ostiarius | Cernere | Aedilis | Vultus |
 |---|---|---|---|---|
-| 顔テンプレート抽出 (enroll) | ○ kiosk で抽出し Cernere へ登録 | 受領・暗号化保存・正本 | — | — |
-| 顔テンプレート保持 | キャッシュ (施設単位、sync) | **正本** | — | — |
-| 同意・撤回・削除 | 撤回 UI 導線を出す | **記録・執行** (削除 → tombstone export) | — | — |
+| 顔テンプレート抽出 (enroll) | ○ kiosk で抽出しローカルに封緘保存 | 同意記録を受領するのみ | — | — |
+| 顔テンプレート・顔写真保持 | **正本** (施設単位、暗号化、鍵はホスト内) | **持たない** | — | — |
+| 同意・撤回・削除 | 撤回 UI 導線 + **物理削除の執行** | 同意の記録、撤回・離脱時に**失効指示**を積む | — | — |
 | 顔照合・生体性判定 | **○** | — | — | — |
 | パスキー登録 | kiosk が Cernere パスキー登録ページの QR を表示 | **○** (device-link、#155) | — | — |
 | パスキー検証 | ○ (オフライン、export キャッシュ) | 正本・失効 | — | — |

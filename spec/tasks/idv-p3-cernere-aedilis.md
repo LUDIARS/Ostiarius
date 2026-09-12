@@ -2,7 +2,7 @@
 task: idv-p3-cernere-aedilis
 project: Ostiarius
 kind: 実装
-status: planned
+status: superseded
 created: 2026-08-16T00:00:00.000Z
 delegation_run_id: null
 memoria_task_id: 1048
@@ -10,6 +10,10 @@ actio_task_id: null
 memory_links: []
 ---
 # P3: Cernere 顔テンプレート正本・同意・export と Aedilis 受理ポリシー
+
+> **2026-09-12**: Cernere 側の完了条件は [plan/face-data-local-only.md](../plan/face-data-local-only.md) で
+> 方針が反転した (Cernere はテンプレート・写真を持たない)。Cernere 節のうちテンプレート・写真・export に
+> 関する項目は **撤去タスクへ置き換え** (別タスクとして分解する)。Aedilis 節は有効。
 
 ## 目的
 

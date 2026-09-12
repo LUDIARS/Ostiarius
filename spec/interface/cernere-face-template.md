@@ -1,4 +1,40 @@
-# interface: Cernere 顔テンプレート / 同意 / 名簿 (連携先 — P3 で Cernere に追加)
+# interface: Cernere 同意 / 失効指示 / 名簿 (連携先)
+
+> **2026-09-12 改訂**: 顔テンプレート・顔写真は Cernere に置かない
+> ([../plan/face-data-local-only.md](../plan/face-data-local-only.md))。本ファイルのうち
+> `face-template/export`、`PUT /api/identity/face-template`、`DELETE .../face-template*` の
+> テンプレート本体を運ぶ契約は **撤去対象**。残す契約は §A、旧契約は §B (実装削除まで参照用に残す)。
+
+## A. 改訂後の契約 (残す / 追加する)
+
+### 残す
+- `POST /api/auth/code/exchange` (service token) — 変更なし。
+- `POST /api/identity/face-consent` (生徒 token) / `GET /api/identity/face-consent/policy` — 変更なし。
+  同意文に「保存先は施設の kiosk 端末のみ」を含む新 policyVersion を追加する。
+- `GET /api/identity/roster?facilityId=` (service) — 変更なし。
+- passkey export の `roles` / `facilityIds` 拡張 — 変更なし。
+
+### 追加: `GET /api/identity/face-revocations?facilityId=&since=` (service、scope `face-revocation:read`)
+- res: `{ revocations: [ { userId, facilityId, reason: "withdrawn" | "left_facility" | "graduated" | "account_deleted" | "consent_expired" | "staff_invalidated", at } ] }`
+- Cernere は同意撤回・所属離脱・卒業・アカウント削除・365 日再同意なし・職員無効化のたびに 1 行積む。30 日保持。
+- 生体情報は一切含まない。Ostiarius は 15 分ごと (+ 職員の即時 sync) に pull し、該当 user のテンプレート・写真・同意の写しを物理削除する。
+- バックアップ復元時は `since` を復元時点の 30 日前にして全量適用してから照合を再開する。
+
+### 追加: `GET /api/identity/face-consents?facilityId=` (service、scope `face-consent:read`)
+- res: `{ consents: [ { userId, consentId, policyVersion, at, revokedAt } ] }` — 施設在籍者分の全量。
+- Ostiarius は同意の写しとして保持し、`active` テンプレートの照合可否 (同意が有効か、365 日以内か) を Cernere 不通時にも自前判定する。
+
+### 追加: `POST /api/identity/face-consent/revoke` (service + `revokedBy`)
+- kiosk 上で生徒本人が (職員立会いで) 登録削除したとき、Cernere 側の同意に `revokedAt` を打つ。
+- Ostiarius は先にローカルを物理削除し、この呼び出しは outbox 経由で再送する (Cernere 不通でも削除は完了させる)。
+
+### 撤去
+- `GET /api/identity/face-template/export`、`PUT /api/identity/face-template`、`DELETE /api/identity/face-template`、`DELETE /api/identity/face-template/:userId`、
+  `POST /api/identity/face-template/:userId/promote|reject`、`GET /api/identity/face-photo/*`。
+- env: Cernere `FACE_TEMPLATE_STORAGE_KEY` / `FACE_TEMPLATE_DISTRIBUTION_KEYS` / `FACE_PHOTO_STORAGE_KEY` / `FACE_PHOTO_KEY_ID` / `FACE_SIDECAR_URL`、Ostiarius `OSTIARIUS_TEMPLATE_KEY` の Infisical 配布 (ローカル生成へ)。
+
+## B. 旧契約 (2026-08、Cernere 正本時代。実装削除 PR で本節を削除する)
+
 
 Ostiarius が **クライアント側**。Cernere に追加する接点の契約。Cernere 側の正本 spec は
 P3 で `Cernere/spec/feature/face-template-store.md` として起こす (本ファイルを転記)。
