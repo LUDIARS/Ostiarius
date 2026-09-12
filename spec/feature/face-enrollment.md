@@ -1,10 +1,16 @@
 # feature: 顔テンプレート登録 (enroll) — 職員立会い + 同意
 
-生徒の顔を **写真として保存せず**、embedding (テンプレート) だけを抽出して Cernere に
-正本登録し、Ostiarius は施設単位でキャッシュする。全体像は [identity-verification.md](identity-verification.md)、
-方針は [../plan/biometric-data-policy.md](../plan/biometric-data-policy.md)。
+> **2026-09-12 改訂**: テンプレートの正本は **Ostiarius (施設 kiosk ホスト)**。Cernere へは送らない
+> ([../plan/face-data-local-only.md](../plan/face-data-local-only.md))。Cernere に残るのは同意記録と失効指示だけ。
 
-- 実装 (予定): `server/routes/identity-enroll.ts`、`server/face/enroll-session.ts`、kiosk `/enroll` 画面
+生徒の顔から embedding (テンプレート) を抽出し、**施設の kiosk ホスト内に封緘して保存**する。
+プロフィール顔写真 1 枚も同じホストに封緘保存できる (職員の本人確認用、
+[face-photo-seeded-enrollment.md](face-photo-seeded-enrollment.md))。全体像は
+[identity-verification.md](identity-verification.md)、方針は
+[../plan/biometric-data-policy.md](../plan/biometric-data-policy.md)。
+
+- 実装: `server/routes/identity-enroll.ts`、`server/face/enrollment-session.ts`、
+  `server/face/local-key.ts` (鍵)、`server/face/local-store.ts` (封緘保存)、kiosk `/enroll` 画面
 - 接点: [../interface/http-identity.md](../interface/http-identity.md)、[../interface/cernere-face-template.md](../interface/cernere-face-template.md)
 
 ## 1. 前提 (運用要件)
@@ -24,8 +30,8 @@
   → [同意画面: 目的・保存範囲・保持期間・撤回方法を表示 → 生徒が同意 (タップ)]
   → [撮影: 正面 / 左 15° / 右 15° / 眼鏡ありなし など 5〜8 ショット、各ショットで品質ゲート + 生体性]
   → [sidecar が各ショットの 512d を返す → Ostiarius が平均 → L2 正規化 = 代表テンプレート]
-  → [Cernere PUT /api/identity/face-template  {userId, template(base64), modelId, quality, consent{policyVersion, at}, enrolledBy(staff userId), facilityId}]
-  → [成功で Ostiarius ローカルキャッシュへ即時 upsert (次回 sync を待たない)]
+  → [Ostiarius が **ローカル正本**へ封緘保存 (AES-256-GCM、鍵はホスト内生成。state='active')]
+  → [次のフレームから照合 roster に載る (同期を待たない)]
   → [完了。撮影フレームはメモリ上で破棄、ディスクに書かない]
 ```
 
@@ -35,16 +41,20 @@
 
 ## 3. 再登録・更新
 
-- 誤拒否が続く生徒は職員立会いで再登録 (旧テンプレートは Cernere 側で `superseded`)。
+- 誤拒否が続く生徒は職員立会いで再登録 (同じ user の行を上書きする。旧テンプレートは残さない)。
 - モデル更新 (glintr100 → 別モデル) 時はテンプレート非互換。`modelId` を持たせ、
   Ostiarius は自分の sidecar の `modelId` と一致するテンプレートだけを roster に載せる。
   移行期間は両モデルの sidecar を並走させない (運用で再登録日を設ける)。
 
 ## 4. 失効
 
-- 生徒本人の撤回 (Cernere プロフィールから)、卒業/退会、職員による無効化 → Cernere が `revokedAt` を立て、
-  export に tombstone として出す → Ostiarius は次回 sync で削除 (最長 15 分)。緊急時は
+- 生徒本人の撤回 (Cernere プロフィールから)、卒業/退会、職員による無効化 → Cernere が **失効指示**を積み、
+  Ostiarius が `GET /api/identity/face-revocations` の pull で受け取って
+  **テンプレート・写真・同意の写しを物理削除**する (最長 15 分)。緊急時は
   `POST /identity/admin/sync` で即時同期 (職員認可)。
+- kiosk 上での本人削除 (職員立会い) は `DELETE /identity/enroll/registration/:userId`。
+  ローカルを即時削除し、Cernere への同意撤回は outbox で再送する。
+- 同意から 365 日を過ぎた登録は、Cernere からの指示を待たずに照合から外す (自前判定)。
 
 ## 5. 監査
 

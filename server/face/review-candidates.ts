@@ -1,35 +1,43 @@
-// 審査候補 (= 写真由来 pending かもしれない生徒) の一覧。
+// 審査候補 (= 写真由来 pending を持つ生徒 / まだ登録していない生徒) の一覧。
 //
-// Cernere には pending テンプレートの一覧 API が無い
-// (GET /api/identity/face-template/status は生徒本人 token 限定 —
-//  Cernere/server/src/http/face-template-handler.ts:59)。
-// export は state='active' しか返さない (face-template-store.ts:179) ので、
-//   施設名簿 (GET /api/identity/roster) − ローカルキャッシュの active
-// が「まだ出席照合に載っていない生徒」= 審査候補になる。
+// 2026-09-12 (spec/plan/face-data-local-only.md §4): 写真と pending テンプレートの正本が
+// ローカルになったので、「審査待ち」はローカルの `state='pending'` 行そのもの。
+// Cernere に問い合わせる必要があるのは「まだ何も登録していない生徒」を出すときだけで、
+// 名簿 (`GET /api/identity/roster`) が引けなくても審査待ちの一覧は出せる
+// (Cernere 不通でも職員が承認を進められるようにする)。
 //
-// 「審査待ち (写真あり)」か「未登録 (写真なし)」かは、職員が 1 人を選んだ時点の
-// 写真取得結果で決まる。名簿一覧で全員分の写真を取りに行かない
-// (spec/feature/face-photo-seeded-enrollment.md §4: 一括取得の口は作らない)。
+// 氏名フルは出さない (kiosk と同じ弱識別 hint)。
 
 import type Database from 'better-sqlite3';
-import { listFaceTemplates } from '../db.ts';
+import { listFaceTemplates, listFacePhotoUserIds } from '../db.ts';
 import type { ServiceTokenProvider } from '../cernere-service-token.ts';
+
+export type ReviewCandidateState = 'pending' | 'unregistered';
 
 export interface ReviewCandidate {
   userId: string;
   /** 氏名フルは出さない (kiosk と同じ弱識別 hint)。 */
   hint: string;
+  state: ReviewCandidateState;
+  /** 審査画面に写真を出せるか。 */
+  hasPhoto: boolean;
 }
 
 export interface ReviewCandidateOptions {
   db: Database.Database;
   baseUrl: string;
-  /** roster は export と同じ service token で読む。 */
+  /** 名簿は passkey export と同じ service token で読む。 */
   serviceToken: ServiceTokenProvider;
   facilityId: string;
   /** 職員 role は候補から外す。 */
   staffRoles: readonly string[];
   limit?: number;
+}
+
+export interface ReviewCandidateList {
+  candidates: ReviewCandidate[];
+  /** Cernere 名簿を引けたか (引けないと「未登録」の行が出ない)。 */
+  rosterAvailable: boolean;
 }
 
 interface RosterUser {
@@ -48,14 +56,8 @@ function rolesOf(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((role): role is string => typeof role === 'string') : [];
 }
 
-function reviewCandidate(user: RosterUser, enrolled: ReadonlySet<string>, staffRoles: readonly string[]): ReviewCandidate | null {
-  if (typeof user.userId !== 'string' || !user.userId) return null;
-  if (enrolled.has(user.userId)) return null;
-  if (rolesOf(user.roles).some((role) => staffRoles.includes(role))) return null;
-  return {
-    userId: user.userId,
-    hint: typeof user.hint === 'string' && user.hint ? user.hint : `ID / ${user.userId.slice(-2)}`,
-  };
+function hintOf(userId: string, hint?: unknown): string {
+  return typeof hint === 'string' && hint ? hint : `ID / ${userId.slice(-2)}`;
 }
 
 async function rosterUsers(options: ReviewCandidateOptions): Promise<RosterUser[]> {
@@ -67,30 +69,45 @@ async function rosterUsers(options: ReviewCandidateOptions): Promise<RosterUser[
   return Array.isArray(body.users) ? body.users.filter(isRosterUser) : [];
 }
 
-/** Cernere 名簿から、まだ active テンプレートを持たない生徒を返す。 */
-export async function listReviewCandidates(options: ReviewCandidateOptions): Promise<ReviewCandidate[]> {
-  const users = await rosterUsers(options);
+/** ローカルの `pending` (写真由来の申請) — Cernere 不通でもこれは出せる。 */
+function pendingCandidates(db: Database.Database): ReviewCandidate[] {
+  const withPhoto = new Set(listFacePhotoUserIds(db));
+  return listFaceTemplates(db, 'pending').map((row) => ({
+    userId: row.user_id,
+    hint: hintOf(row.user_id),
+    state: 'pending' as const,
+    hasPhoto: withPhoto.has(row.user_id),
+  }));
+}
+
+/**
+ * 審査待ち (ローカル pending) と、まだ登録の無い生徒 (Cernere 名簿 − ローカル登録) を返す。
+ * 名簿が引けないときは審査待ちだけを返し、`rosterAvailable: false` で知らせる。
+ */
+export async function listReviewCandidates(options: ReviewCandidateOptions): Promise<ReviewCandidateList> {
+  const candidates = pendingCandidates(options.db);
   const enrolled = new Set(listFaceTemplates(options.db).map((row) => row.user_id));
-  const candidates: ReviewCandidate[] = [];
-  for (const user of users) {
-    const candidate = reviewCandidate(user, enrolled, options.staffRoles);
-    if (!candidate) continue;
-    candidates.push(candidate);
-    if (candidates.length >= (options.limit ?? DEFAULT_LIMIT)) break;
+  let rosterAvailable = true;
+  try {
+    const limit = options.limit ?? DEFAULT_LIMIT;
+    for (const user of await rosterUsers(options)) {
+      if (candidates.length >= limit) break;
+      if (typeof user.userId !== 'string' || !user.userId) continue;
+      if (enrolled.has(user.userId)) continue;
+      if (rolesOf(user.roles).some((role) => options.staffRoles.includes(role))) continue;
+      candidates.push({ userId: user.userId, hint: hintOf(user.userId, user.hint), state: 'unregistered', hasPhoto: false });
+    }
+  } catch {
+    rosterAvailable = false;
   }
-  return candidates;
+  return { candidates, rosterAvailable };
 }
 
 /**
  * 写真取得・審査の対象を施設の現在の候補へ限定する。
- * UI は候補一覧を出すだけなので、API を直接呼ばれても他施設または職員の
- * userId を scope 付き Cernere token へ渡さないための認可境界になる。
+ * API を直接叩かれても、他施設または職員の userId をローカル正本の読み出しへ渡さない。
  */
 export async function isReviewCandidate(userId: string, options: ReviewCandidateOptions): Promise<boolean> {
-  const enrolled = new Set(listFaceTemplates(options.db).map((row) => row.user_id));
-  for (const user of await rosterUsers(options)) {
-    const candidate = reviewCandidate(user, enrolled, options.staffRoles);
-    if (candidate?.userId === userId) return true;
-  }
-  return false;
+  const { candidates } = await listReviewCandidates(options);
+  return candidates.some((candidate) => candidate.userId === userId);
 }

@@ -55,14 +55,6 @@ export interface OstiariusConfig {
    *  Cernere の project token は TTL 60 分なので、これは運用者の一時確認用の逃げ道であって
    *  常用しない。空なら project client credential から都度取り直す (cernere-service-token.ts)。 */
   cernereServiceToken: string;
-  /** CERNERE_FACE_PHOTO_TOKEN — 顔写真取得・審査用 Bearer (scope face-photo:read / face-photo:manage)。
-   *  Cernere の service-scope-auth は project token を拒否し tool_client の scope か admin user token しか
-   *  受理しないため、export 用 token とは分けて持つ。空なら写真審査機能を丸ごと無効にする (fail closed)。 */
-  cernereFacePhotoToken: string;
-  /** OSTIARIUS_FACE_REVIEWER_USER_ID — promote / reject に載せる Cernere 上の審査者 userId。
-   *  Cernere 側が enrolledBy と token の主体の一致を強制するため、kiosk のその場の職員 ID は載せられない。
-   *  実際に承認した職員は Ostiarius の face_events に actor として残す (二重記録)。 */
-  cernereReviewerUserId: string;
   rpId: string;
   pwaOrigin: string;
   keyPath: string;
@@ -74,6 +66,7 @@ export interface OstiariusConfig {
   aedilisAdminToken: string;
   /** Aedilis に出すゲートウェイ表示ラベル */
   label: string;
+  /** OSTIARIUS_DATA — DB と顔データの封緘鍵の置き場 (鍵は env / Infisical から供給しない)。 */
   dataDir: string;
   dbPath: string;
   syncIntervalMs: number;
@@ -91,17 +84,28 @@ export interface OstiariusConfig {
   /** OSTIARIUS_LEGACY_METHODS — 明示的に許可した旧来の本人確認経路。既定は全て無効。 */
   legacyMethods: readonly string[];
   kioskToken: string;
-  templateKey: Buffer;
   faceSidecarUrl: string;
   faceMatchThreshold: number;
   faceMargin: number;
   livenessThreshold: number;
   faceChallengeRequired: boolean;
-  faceTemplateSource: 'cernere' | 'local';
+  /** 同意記録の相手。`local` は Cernere を使わない検証・オフライン運用向け。 */
+  consentSource: 'cernere' | 'local';
+  /** OSTIARIUS_BACKUP_DIR — 施設内バックアップの複製先 (空ならバックアップしない)。 */
+  backupDir: string;
   aedilisGatewayToken: string;
   staffRoles: readonly string[];
   eventRetentionDays: number;
   dailyOverrideLimit: number;
+}
+
+/**
+ * 同意記録の相手。`OSTIARIUS_FACE_CONSENT_SOURCE` を優先し、旧
+ * `OSTIARIUS_FACE_TEMPLATE_SOURCE` も後方互換で受ける。
+ */
+function consentSourceOf(): 'cernere' | 'local' {
+  const configured = optionalEnv('OSTIARIUS_FACE_CONSENT_SOURCE', optionalEnv('OSTIARIUS_FACE_TEMPLATE_SOURCE', 'cernere'));
+  return configured === 'local' ? 'local' : 'cernere';
 }
 
 export function loadConfig(): OstiariusConfig {
@@ -118,10 +122,6 @@ export function loadConfig(): OstiariusConfig {
     cernereBaseUrl,
     cernereFrontendUrl,
     cernereServiceToken: optionalEnv('CERNERE_SERVICE_TOKEN', ''),
-    // 写真は個人データそのもので、export 用 token に暗黙で権限を足したくない。
-    // 未設定なら審査経路を公開しない (起動は止めない — 出席確認そのものは影響を受けない)。
-    cernereFacePhotoToken: optionalEnv('CERNERE_FACE_PHOTO_TOKEN', ''),
-    cernereReviewerUserId: optionalEnv('OSTIARIUS_FACE_REVIEWER_USER_ID', ''),
     rpId: requireEnv('OSTIARIUS_RP_ID'),
     pwaOrigin: normalizeHttpOrigin('OSTIARIUS_PWA_ORIGIN', requireEnv('OSTIARIUS_PWA_ORIGIN')),
     keyPath: resolve(optionalEnv('OSTIARIUS_KEY_PATH', join(dataDir, 'gateway.key'))),
@@ -149,13 +149,15 @@ export function loadConfig(): OstiariusConfig {
       .map((method) => method.trim())
       .filter(Boolean),
     kioskToken: requireEnv('OSTIARIUS_KIOSK_TOKEN'),
-    templateKey: Buffer.from(requireEnv('OSTIARIUS_TEMPLATE_KEY'), 'base64'),
     faceSidecarUrl: optionalEnv('OSTIARIUS_FACE_SIDECAR_URL', 'http://127.0.0.1:17591').replace(/\/+$/, ''),
     faceMatchThreshold: Number(optionalEnv('OSTIARIUS_FACE_MATCH_THRESHOLD', '0.62')),
     faceMargin: Number(optionalEnv('OSTIARIUS_FACE_MARGIN', '0.08')),
     livenessThreshold: Number(optionalEnv('OSTIARIUS_LIVENESS_THRESHOLD', '0.90')),
     faceChallengeRequired: optionalEnv('OSTIARIUS_FACE_CHALLENGE', 'required') === 'required',
-    faceTemplateSource: optionalEnv('OSTIARIUS_FACE_TEMPLATE_SOURCE', 'cernere') === 'local' ? 'local' : 'cernere',
+    // 旧 OSTIARIUS_FACE_TEMPLATE_SOURCE は「テンプレートの取得元」だったが、正本が
+    // ローカルになったので残るのは「同意を Cernere に打つかどうか」だけ。旧名も受ける。
+    consentSource: consentSourceOf(),
+    backupDir: optionalEnv('OSTIARIUS_BACKUP_DIR', ''),
     aedilisGatewayToken: optionalEnv('AEDILIS_GATEWAY_TOKEN', ''),
     staffRoles: optionalEnv('OSTIARIUS_STAFF_ROLES', 'staff,admin').split(',').map((role) => role.trim()).filter(Boolean),
     eventRetentionDays: Number(optionalEnv('OSTIARIUS_EVENT_RETENTION_DAYS', '90')),
@@ -170,7 +172,7 @@ export function loadConfig(): OstiariusConfig {
  *
  * 通常は Excubitor が注入する project client credential から都度取り直す。
  * 手発行の固定 token だけでも動くが、TTL 60 分で失効するため一時確認用。
- * どちらも無ければ passkey 公開鍵も顔テンプレートも取れないので起動を止める。
+ * どちらも無ければ passkey 公開鍵も失効指示も取れないので起動を止める。
  */
 function assertCernereServiceCredentials(config: OstiariusConfig): void {
   if (config.cernereProjectClientId && config.cernereProjectClientSecret) return;

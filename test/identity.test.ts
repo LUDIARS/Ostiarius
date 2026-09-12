@@ -33,7 +33,7 @@ function app() {
     kioskAuthorization: authorization,
     sessions,
   }));
-  router.route('/', makeKioskRouter({ authorization, pwaOrigin: PWA_ORIGIN, sessions, reviewEnabled: false }));
+  router.route('/', makeKioskRouter({ authorization, pwaOrigin: PWA_ORIGIN, sessions }));
   return { router, db };
 }
 

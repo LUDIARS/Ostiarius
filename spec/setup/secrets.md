@@ -10,15 +10,23 @@ Bibliotheca と同パターン。
 |---|---|---|
 | `CERNERE_PROJECT_CLIENT_SECRET` | Cernere project client credential の secret。service token はここから都度取り直す (通常は Excubitor が起動ごとに注入するので Infisical には置かない) | Excubitor / Infisical |
 | `CERNERE_SERVICE_TOKEN` | 手発行の固定 service Bearer (TTL 60 分、一時確認用) | Infisical |
-| `CERNERE_FACE_PHOTO_TOKEN` | 顔写真取得・pending 審査用 Bearer (scope `face-photo:read` / `face-photo:manage`)。export 用とは別 token | Infisical |
 | `OSTIARIUS_PRIVATE_KEY` | Ed25519 秘密鍵 (PKCS#8 PEM)。本番はこれを inject | Infisical |
 | `AEDILIS_ADMIN_TOKEN` | 公開鍵 自己登録の admin Bearer | Infisical |
 | `CLOUDFLARE_DNS_API_TOKEN` | ACME DNS-01 の TXT 操作 (CLI 専用) | Infisical |
 | `OSTIARIUS_KIOSK_TOKEN` | kiosk / enroll 画面、session 管理、登録 QR の共有トークン | Infisical |
-| `OSTIARIUS_TEMPLATE_KEY` | 顔テンプレートキャッシュの AES-256-GCM 鍵 (32byte base64)。Cernere export の施設配布鍵と同一 | Infisical |
 | `AEDILIS_GATEWAY_TOKEN` | kiosk 直接送信 (`/api/checkin/gateway-verify`) の Bearer (P3〜) | Infisical |
 
 これらは `env-cli.config.ts` の `infraKeys` に default を置かず、必ず Infisical から供給する。
+
+## Infisical に置かないもの: 顔データの封緘鍵 (2026-09-12)
+
+顔テンプレート・顔写真の AES-256-GCM 鍵は **kiosk ホスト内で生成**し、`OSTIARIUS_DATA/face-keys.json`
+(0600、テンプレートと写真で別鍵) に置く。env にも Infisical にも置かない
+([plan/face-data-local-only.md](../plan/face-data-local-only.md) §3)。旧 `OSTIARIUS_TEMPLATE_KEY` は撤去済み。
+
+- 前提条件: ホストのディスク暗号化 (BitLocker / LUKS)。TPM 封緘 / OS 資格情報ストアは未決 (同 §8)。
+- バックアップ媒体と鍵媒体を分ける (`OSTIARIUS_BACKUP_DIR` を `OSTIARIUS_DATA` と同じにしない)。
+- 鍵の喪失 = 全登録の喪失。再 enroll で復旧する (エスクローは作らない)。
 
 ## env-cli の設定値
 

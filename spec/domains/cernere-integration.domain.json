@@ -1,6 +1,6 @@
 {
   "name": "cernere-integration",
-  "description": "Cernere を情報源とする外部取り込み: 起動時+定期の passkey export 同期 (best-effort, 不通は前回キャッシュ継続) と、モバイルチェックイン表示用の vantan_user プロフィール enrichment クライアント。",
+  "description": "Cernere を情報源とする外部取り込み: 起動時+定期の passkey export 同期と、顔データの失効指示・同意の pull (生体情報は運ばない)、モバイルチェックイン表示用の vantan_user プロフィール enrichment クライアント。いずれも best-effort で、不通・未実装 (404) は前回の状態で運用を継続する。",
   "presetRules": [],
   "templateRules": [],
   "membership": [
@@ -35,7 +35,8 @@
   "cardTemplate": "Summarise the \"cernere-integration\" domain: Cernere を情報源とする外部取り込み: 起動時+定期の passkey export 同期 (best-effort, 不通は前回キャッシュ継続) と、モバイルチェックイン表示用の vantan_user プロフィール enrichment クライアント。",
   "specRefs": [
     "feature: Cernere passkey 同期 (オフライン検証の土台)",
-    "interface: Cernere passkey export (連携先 — 取得)"
+    "interface: Cernere passkey export (連携先 — 取得)",
+    "interface: Cernere 同意 / 失効指示 / 名簿 (連携先)"
   ],
   "rationale": "Ostiarius がクライアントとなる Cernere 向け外部接点をまとめる。passkey export と profile enrichment はどちらも Cernere からの取得で、同期・エラー握り潰しの方針を共有する。"
 }

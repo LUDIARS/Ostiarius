@@ -9,7 +9,7 @@ import type { EnvCliConfig } from "../Cernere/packages/env-cli/src/types.js";
  *
  * secret 扱い ([[feedback_config_and_secrets]] — 平文保存しない):
  *   - CERNERE_PROJECT_CLIENT_SECRET : Cernere project client credential の secret。
- *                               service token (passkey export / 顔テンプレート取得) はこれから都度取り直す。
+ *                               service token (passkey export / 失効指示の取得) はこれから都度取り直す。
  *                               通常は Excubitor が起動ごとに注入するので Infisical には置かない
  *   - OSTIARIUS_KIOSK_TOKEN  : kiosk 管理 API 用共有トークン
  *   - OSTIARIUS_PRIVATE_KEY   : Ed25519 秘密鍵 (PKCS#8 PEM)。 本番はこれを inject し
@@ -30,7 +30,7 @@ const config: EnvCliConfig = {
     OSTIARIUS_FACILITY_ID: "",
     OSTIARIUS_LABEL: "",
 
-    // ─── Cernere 認証 (passkey export の取得元) ───────────────
+    // ─── Cernere 認証 (passkey export・失効指示・同意の取得元) ───
     CERNERE_BASE_URL: "",
     CERNERE_FRONTEND_URL: "",
     // CERNERE_PROJECT_CLIENT_ID / _SECRET は Excubitor が起動ごとに注入する (catalog の
@@ -59,19 +59,18 @@ const config: EnvCliConfig = {
     OSTIARIUS_CHALLENGE_TTL_MS: "120000",
 
     // ─── 顔認証 (spec/feature/identity-verification.md §8) ───────
-    // OSTIARIUS_TEMPLATE_KEY は secret — Infisical のみ (32byte base64、Cernere の
-    // FACE_TEMPLATE_DISTRIBUTION_KEYS[facilityId] と同一値)。顔有効時は起動必須。
+    // 顔テンプレート・顔写真の封緘鍵は **kiosk ホスト内で生成** し、OSTIARIUS_DATA 配下の
+    // 0600 鍵ファイルに置く (spec/plan/face-data-local-only.md §3)。Infisical・env には置かない。
     OSTIARIUS_FACE_SIDECAR_URL: "http://127.0.0.1:17591",
     OSTIARIUS_FACE_MATCH_THRESHOLD: "0.62",
     OSTIARIUS_FACE_MARGIN: "0.08",
     OSTIARIUS_LIVENESS_THRESHOLD: "0.90",
     OSTIARIUS_FACE_CHALLENGE: "required",
-    OSTIARIUS_FACE_TEMPLATE_SOURCE: "cernere",
+    // 同意記録を Cernere に打つか (local はオフライン検証用)。旧 OSTIARIUS_FACE_TEMPLATE_SOURCE。
+    OSTIARIUS_FACE_CONSENT_SOURCE: "cernere",
     OSTIARIUS_STAFF_ROLES: "staff,admin",
-    // 写真由来 pending の職員承認 (spec/feature/face-photo-seeded-enrollment.md)。
-    // CERNERE_FACE_PHOTO_TOKEN は secret — Infisical のみ (scope face-photo:read / face-photo:manage)。
-    // 審査者 userId は Cernere 側で施設の owner/admin/maintainer である必要がある。
-    OSTIARIUS_FACE_REVIEWER_USER_ID: "",
+    // 施設内バックアップの複製先 (USB / NAS)。鍵ファイルとは別媒体にする。
+    OSTIARIUS_BACKUP_DIR: "",
     OSTIARIUS_STAFF_OVERRIDE_DAILY_LIMIT: "20",
     OSTIARIUS_EVENT_RETENTION_DAYS: "90",
     // AEDILIS_GATEWAY_TOKEN は secret — Infisical のみ (Aedilis /admin/gateways 登録時に払い出し)
@@ -91,8 +90,6 @@ const config: EnvCliConfig = {
       "OSTIARIUS_RP_ID",
       "OSTIARIUS_PWA_ORIGIN",
       "OSTIARIUS_KIOSK_TOKEN",
-      // 顔テンプレートキャッシュの暗号鍵 (config.ts で requireEnv)
-      "OSTIARIUS_TEMPLATE_KEY",
       // 本番は秘密鍵を inject (平文ファイルを使わない)
       "OSTIARIUS_PRIVATE_KEY",
     ],

@@ -35,13 +35,16 @@ import { buildFaceRoster } from './face/template-roster.ts';
 import { FaceVerificationFlow } from './face/verification-flow.ts';
 import { makeIdentityFaceRouter } from './routes/identity-face.ts';
 import { retryOutbox } from './face/aedilis-outbox.ts';
-import { syncFaceTemplates } from './face/template-sync.ts';
 import { StaffSessionStore } from './face/staff-session.ts';
 import { EnrollmentSessionStore } from './face/enrollment-session.ts';
 import { makeIdentityStaffRouter } from './routes/identity-staff.ts';
 import { makeIdentityEnrollRouter } from './routes/identity-enroll.ts';
-import { createCernerePhotoClient } from './face/cernere-photo-client.ts';
-import { CernereTemplateClient } from './face/cernere-template-client.ts';
+import { CernereConsentClient } from './face/cernere-consent-client.ts';
+import { retryConsentRevocations } from './face/consent-outbox.ts';
+import { loadLocalFaceKeys } from './face/local-key.ts';
+import { createLanGuard } from './face/lan-guard.ts';
+import { syncFaceData } from './face/revocation-sync.ts';
+import { startFaceBackup } from './face/backup.ts';
 import { FaceReviewService } from './face/review-service.ts';
 import { makeIdentityReviewRouter } from './routes/identity-review.ts';
 import { createServiceTokenProvider, staticServiceTokenProvider, type ServiceTokenProvider } from './cernere-service-token.ts';
@@ -55,11 +58,14 @@ const keyPair = loadOrCreateKeyPair({
   keyPath: config.keyPath,
 });
 const challenges = new ChallengeStore(config.challengeTtlMs);
-if (config.templateKey.length !== 32) throw new Error('OSTIARIUS_TEMPLATE_KEY must be a base64-encoded 32-byte key');
+// 顔データの封緘鍵はこのホストで生成・保管する (env / Infisical からは配らない)。
+const faceKeys = loadLocalFaceKeys(config.dataDir);
+const isLan = createLanGuard();
 const sidecar = createSidecarClient(config.faceSidecarUrl);
 const staffSessions = new StaffSessionStore();
 const enrollment = new EnrollmentSessionStore();
-const faceFlow = new FaceVerificationFlow({ db, sessions: identitySessions, sidecar, roster: () => buildFaceRoster(db, config.templateKey, 'insightface/glintr100@1'), threshold: config.faceMatchThreshold, margin: config.faceMargin, livenessThreshold: config.livenessThreshold, challengeRequired: config.faceChallengeRequired, subjectHint: (userId) => `ID / ${userId.slice(-2)}` });
+const MODEL_ID = 'insightface/glintr100@1';
+const faceFlow = new FaceVerificationFlow({ db, sessions: identitySessions, sidecar, roster: () => buildFaceRoster(db, faceKeys, MODEL_ID), threshold: config.faceMatchThreshold, margin: config.faceMargin, livenessThreshold: config.livenessThreshold, challengeRequired: config.faceChallengeRequired, subjectHint: (userId) => `ID / ${userId.slice(-2)}` });
 
 // service token は project client credential から都度取り直す (TTL 60 分)。
 // 固定 token は運用者の一時確認用の逃げ道として残す。
@@ -71,36 +77,30 @@ const cernereServiceToken: ServiceTokenProvider = config.cernereProjectClientId 
   })
   : staticServiceTokenProvider(config.cernereServiceToken);
 
+// Cernere から取り込むのは失効指示と同意だけ (顔テンプレートの正本はローカル)。
+const consentClient = new CernereConsentClient({
+  baseUrl: config.cernereBaseUrl,
+  serviceToken: cernereServiceToken,
+  facilityId: config.facilityId,
+});
+const syncFaceNow = (): Promise<unknown> => syncFaceData({
+  db,
+  baseUrl: config.cernereBaseUrl,
+  serviceToken: cernereServiceToken,
+  facilityId: config.facilityId,
+});
+
 startCernereSync({
   db,
   cernereBaseUrl: config.cernereBaseUrl,
   serviceToken: cernereServiceToken,
   intervalMs: config.syncIntervalMs,
+  faceSync: config.consentSource === 'cernere' ? syncFaceNow : undefined,
 });
-// 承認直後に施設キャッシュへ反映するため、定期同期と同じ処理を関数として持つ。
-const syncTemplatesNow = (): Promise<{ ok: boolean; synced: number }> => syncFaceTemplates({
-  db,
-  baseUrl: config.cernereBaseUrl,
-  serviceToken: cernereServiceToken,
-  facilityId: config.facilityId,
-  key: config.templateKey,
-});
-if (config.faceTemplateSource === 'cernere') {
-  void syncTemplatesNow();
-  setInterval(() => { void syncTemplatesNow(); }, config.syncIntervalMs).unref?.();
-}
 
-// 写真取得・審査は scope 付き token と Cernere 上の審査者 userId が揃って初めて有効。
-// 欠けている場合は承認パネルも API も出さない (権限が無いまま画面だけ出さない)。
-const facePhotoClient = createCernerePhotoClient({
-  baseUrl: config.cernereBaseUrl,
-  token: config.cernereFacePhotoToken,
-  facilityId: config.facilityId,
-  reviewerUserId: config.cernereReviewerUserId,
-});
-if (!facePhotoClient) {
-  console.warn('[ostiarius] CERNERE_FACE_PHOTO_TOKEN / OSTIARIUS_FACE_REVIEWER_USER_ID 未設定 → 写真由来 pending の職員承認は無効 (従来の職員立会い登録は利用できます)');
-}
+// 施設内バックアップ (日次・7 世代)。未設定なら運用者がまだ媒体を決めていないということ。
+if (config.backupDir) startFaceBackup(db, { backupDir: config.backupDir, dataDir: config.dataDir });
+else console.warn('[ostiarius] OSTIARIUS_BACKUP_DIR 未設定 → 施設内バックアップは無効 (ホスト故障時は全員再登録になります)');
 
 // vantan_user プロフィール enrichment (モバイルチェックイン確認画面の department/grade/name 表示) は
 // 任意機能 — CERNERE_PROJECT_CLIENT_ID/_SECRET 未設定なら createVantanUserClient が null を
@@ -136,7 +136,8 @@ app.get('/api/health', async (c) => {
     lanId: config.lanId,
     facilityId: config.facilityId,
     credentials: countCredentials(db),
-    faceTemplates: countFaceTemplates(db),
+    faceTemplates: countFaceTemplates(db, 'active'),
+    facePending: countFaceTemplates(db, 'pending'),
     sidecar: sidecarHealth,
     outbox: countOutbox(db),
     methods: ['passkey', ...config.legacyMethods.filter((method) => method === 'session' || method === 'password')],
@@ -166,35 +167,26 @@ app.route('/', makeKioskRouter({
   authorization: kioskAuthorization,
   pwaOrigin: config.pwaOrigin,
   sessions: identitySessions,
-  reviewEnabled: Boolean(facePhotoClient),
 }));
 app.route('/', makeIdentityFaceRouter({ db, flow: faceFlow, authorization: kioskAuthorization, privateKey: keyPair.privateKey, lanId: config.lanId, facilityId: config.facilityId, aedilisBaseUrl: config.aedilisBaseUrl, aedilisGatewayToken: config.aedilisGatewayToken }));
-app.route('/', makeIdentityStaffRouter({ db, challenges, lanId: config.lanId, facilityId: config.facilityId, rpId: config.rpId, pwaOrigin: config.pwaOrigin, privateKey: keyPair.privateKey, staffRoles: config.staffRoles, sessions: staffSessions, aedilisBaseUrl: config.aedilisBaseUrl, aedilisGatewayToken: config.aedilisGatewayToken, dailyOverrideLimit: config.dailyOverrideLimit }));
-app.route('/', makeIdentityEnrollRouter({ db, sidecar, staff: staffSessions, enrollment, key: config.templateKey, modelId: 'insightface/glintr100@1', source: config.faceTemplateSource, baseUrl: config.cernereBaseUrl, serviceToken: cernereServiceToken, facilityId: config.facilityId }));
-if (facePhotoClient) {
-  app.route('/', makeIdentityReviewRouter({
-    db,
-    staff: staffSessions,
-    photos: facePhotoClient,
-    review: new FaceReviewService({
-      db,
-      photos: facePhotoClient,
-      templates: new CernereTemplateClient({ baseUrl: config.cernereBaseUrl, serviceToken: cernereServiceToken, facilityId: config.facilityId }),
-      enrollment,
-      key: config.templateKey,
-      modelId: 'insightface/glintr100@1',
-      reviewerUserId: config.cernereReviewerUserId,
-      syncNow: syncTemplatesNow,
-    }),
-    enrollment,
-    cernereBaseUrl: config.cernereBaseUrl,
-    serviceToken: cernereServiceToken,
-    facilityId: config.facilityId,
-    staffRoles: config.staffRoles,
-    shotsRequired: 6,
-  }));
-}
+app.route('/', makeIdentityStaffRouter({ db, challenges, lanId: config.lanId, facilityId: config.facilityId, rpId: config.rpId, pwaOrigin: config.pwaOrigin, privateKey: keyPair.privateKey, staffRoles: config.staffRoles, sessions: staffSessions, aedilisBaseUrl: config.aedilisBaseUrl, aedilisGatewayToken: config.aedilisGatewayToken, dailyOverrideLimit: config.dailyOverrideLimit, keys: faceKeys, isLan, syncNow: syncFaceNow }));
+app.route('/', makeIdentityEnrollRouter({ db, sidecar, staff: staffSessions, enrollment, keys: faceKeys, modelId: MODEL_ID, facilityId: config.facilityId, consentSource: config.consentSource, baseUrl: config.cernereBaseUrl, serviceToken: cernereServiceToken, isLan }));
+app.route('/', makeIdentityReviewRouter({
+  db,
+  staff: staffSessions,
+  review: new FaceReviewService({ db, keys: faceKeys, enrollment, modelId: MODEL_ID, facilityId: config.facilityId }),
+  enrollment,
+  cernereBaseUrl: config.cernereBaseUrl,
+  serviceToken: cernereServiceToken,
+  facilityId: config.facilityId,
+  staffRoles: config.staffRoles,
+  shotsRequired: 6,
+  consentSource: config.consentSource,
+  isLan,
+}));
 if (config.aedilisBaseUrl && config.aedilisGatewayToken) setInterval(() => { void retryOutbox(db, config.aedilisBaseUrl, config.aedilisGatewayToken); }, 30_000).unref?.();
+// 同意撤回の再送 (ローカル削除は済んでいる。Cernere 側の同意へ revokedAt を打つだけ)。
+if (config.consentSource === 'cernere') setInterval(() => { void retryConsentRevocations(db, consentClient); }, 60_000).unref?.();
 rotateFaceEvents(db, config.eventRetentionDays);
 setInterval(() => rotateFaceEvents(db, config.eventRetentionDays), 86_400_000).unref?.();
 

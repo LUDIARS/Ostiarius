@@ -1,0 +1,22 @@
+{
+  "name": "contract-observation",
+  "description": "Augur の contract-wrap で受け入れ条件を実行時に観測する層。augur.contracts.json が契約 (C-n) と述語モジュールを宣言し、server/contract-runtime.ts がVestigium 互換 JSONL へ記録する。対象関数の戻り値・例外・同期非同期性は変えない。",
+  "presetRules": [],
+  "templateRules": [],
+  "membership": [
+    {
+      "pathPattern": "(^|/)server/contract-runtime\\.ts$"
+    },
+    {
+      "pathPattern": "(^|/)contracts/[^/]+\\.contract\\.ts$"
+    },
+    {
+      "pathPattern": "(^|/)augur\\.(?:contracts|inject)\\.json$"
+    }
+  ],
+  "cardTemplate": "Summarise the \"contract-observation\" domain: Augur contract-wrap の観測ランタイムと述語モジュール。",
+  "specRefs": [
+    "tasks: 顔テンプレート・顔写真を Ostiarius のローカル正本へ昇格する"
+  ],
+  "rationale": "受け入れ条件の観測は機能ドメインの責務ではなく横断的関心事なので、ランタイムと述語を独立した境界に置き、生体情報を ctx に載せない規律をここへ集約する。"
+}

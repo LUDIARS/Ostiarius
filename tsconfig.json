@@ -15,6 +15,6 @@
     "isolatedModules": true,
     "types": ["node"]
   },
-  "include": ["server/**/*.ts", "test/**/*.ts"],
+  "include": ["server/**/*.ts", "test/**/*.ts", "contracts/**/*.ts"],
   "exclude": ["node_modules", "data"]
 }

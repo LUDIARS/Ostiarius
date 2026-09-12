@@ -44,3 +44,20 @@ export async function exchangeStudentAuthCode(code: unknown, options: StudentAut
     return null;
   }
 }
+
+/**
+ * enroll / 撮り直し承認で共通の生徒特定。
+ *
+ * `local` は Cernere を使わない検証・オフライン運用向けの経路で、`local:<userId>` を
+ * そのまま生徒 ID として受ける (同意も Cernere へは打たない)。
+ */
+export async function resolveEnrollStudent(
+  value: unknown,
+  options: StudentAuthCodeOptions & { consentSource: 'cernere' | 'local' },
+): Promise<ResolvedStudent | null> {
+  if (options.consentSource === 'local') {
+    const userId = typeof value === 'string' && value.startsWith('local:') ? value.slice(6) : '';
+    return userId ? { userId, accessToken: null } : null;
+  }
+  return exchangeStudentAuthCode(value, options);
+}

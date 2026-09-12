@@ -23,8 +23,6 @@ env-cli (Infisical) 設定は `env-cli.config.ts`。
 | `CERNERE_BASE_URL` | passkey export 取得元 (末尾 `/` 除去) | — | **必須** |
 | `CERNERE_PROJECT_CLIENT_ID` / `CERNERE_PROJECT_CLIENT_SECRET` | Cernere project client credential (**secret**)。Excubitor が起動ごとに注入する。service token はここから都度取り直す | — | **必須** (下記の代替可) |
 | `CERNERE_SERVICE_TOKEN` | 手発行の固定 service Bearer (**secret**)。**TTL 60 分**で失効するため一時確認用 | — | 任意 |
-| `CERNERE_FACE_PHOTO_TOKEN` | プロフィール顔写真の取得・審査用 Bearer。scope `face-photo:read` / `face-photo:manage` (**secret**) | `''` (空=写真審査を無効) | |
-| `OSTIARIUS_FACE_REVIEWER_USER_ID` | promote / reject の `enrolledBy` に載せる Cernere 上の審査者 userId。token の主体と一致必須 | `''` (空=写真審査を無効) | |
 | `OSTIARIUS_RP_ID` | WebAuthn rpID (Cernere と同 eTLD+1) | — | **必須** |
 | `OSTIARIUS_PWA_ORIGIN` | CORS 許可 + expectedOrigin の PWA origin | — | **必須** |
 | `OSTIARIUS_PRIVATE_KEY` | Ed25519 秘密鍵 PKCS#8 PEM。本番は inject (**secret**) | `''` (空→file 経路) | 本番 必須 |
@@ -32,7 +30,8 @@ env-cli (Infisical) 設定は `env-cli.config.ts`。
 | `AEDILIS_BASE_URL` | 公開鍵 自己登録先 (末尾 `/` 除去) | `''` (空=手動) | |
 | `AEDILIS_ADMIN_TOKEN` | 自己登録 admin Bearer (**secret**) | `''` (空=手動) | |
 | `OSTIARIUS_LABEL` | Aedilis に出す表示ラベル | `''` | |
-| `OSTIARIUS_DATA` | data ディレクトリ | `./data` (server 親基準) | |
+| `OSTIARIUS_DATA` | data ディレクトリ (DB と**顔データの封緘鍵**を置く) | `./data` (server 親基準) | |
+| `OSTIARIUS_BACKUP_DIR` | 施設内バックアップの複製先 (USB / NAS)。鍵とは別媒体にする | `''` (空=バックアップ無効) | |
 | `OSTIARIUS_SYNC_INTERVAL_MS` | passkey 同期間隔 | `900000` (15min) | |
 | `OSTIARIUS_CHALLENGE_TTL_MS` | challenge TTL | `120000` (2min) | |
 | `OSTIARIUS_KIOSK_TOKEN` | kiosk / enroll 画面、session 管理、登録 QR を開く共有トークン (**secret**) | — | **必須** (P1〜) |
@@ -41,19 +40,26 @@ env-cli (Infisical) 設定は `env-cli.config.ts`。
 | `OSTIARIUS_STAFF_USER_IDS` | export に `roles` が無い間の職員 userId (CSV、暫定) | `''` | |
 | `OSTIARIUS_STAFF_OVERRIDE_DAILY_LIMIT` | 職員 1 人あたりの override 日次上限 | `20` | |
 | `OSTIARIUS_FACE_SIDECAR_URL` | face-sidecar ベース URL (localhost 固定推奨) | `http://127.0.0.1:17591` | 顔有効時 |
-| `OSTIARIUS_TEMPLATE_KEY` | 顔テンプレートキャッシュ暗号鍵 32byte base64 (**secret**) | — | 顔有効時 **必須** |
 | `OSTIARIUS_FACE_MATCH_THRESHOLD` | 1:N 受理 cos 類似度 (glintr100) | `0.62` | |
 | `OSTIARIUS_FACE_MARGIN` | top1 − top2 の下限 | `0.08` | |
 | `OSTIARIUS_FACE_CHALLENGE` | アクティブチャレンジ `required` / `off` | `required` | |
 | `OSTIARIUS_LIVENESS_THRESHOLD` | パッシブ生体性スコア下限 | `0.90` | |
-| `OSTIARIUS_FACE_TEMPLATE_SOURCE` | `cernere` (export 同期) / `local` (P3 未完時) | `cernere` | |
+| `OSTIARIUS_FACE_CONSENT_SOURCE` | 同意記録の相手 `cernere` / `local` (Cernere を使わない検証用)。旧名 `OSTIARIUS_FACE_TEMPLATE_SOURCE` も受ける | `cernere` | |
 | `OSTIARIUS_EVENT_RETENTION_DAYS` | 監査ログ保持日数 | `90` | |
 | `CERNERE_FRONTEND_URL` | 生徒向けパスキー登録 QR の URL 元 (`/profile#passkey`) | `CERNERE_BASE_URL` | |
 | `AEDILIS_GATEWAY_TOKEN` | kiosk 直接送信 (`/api/checkin/gateway-verify`) の Bearer (**secret**、P3〜) | — | 顔有効時 |
 
 顔認証 / パスキー代替 / 職員 override の設計は [feature/identity-verification.md](../feature/identity-verification.md)。
 
-派生: `dbPath = {dataDir}/ostiarius.db`。
+派生: `dbPath = {dataDir}/ostiarius.db`、顔データの封緘鍵 `= {dataDir}/face-keys.json`。
+
+### 顔データの鍵は env で配らない (2026-09-12)
+
+顔テンプレート・顔写真の正本が Ostiarius になったため、封緘鍵は **kiosk ホスト内で生成**し、
+`{dataDir}/face-keys.json` (0600、テンプレートと写真で別鍵) に置く
+([plan/face-data-local-only.md](../plan/face-data-local-only.md) §3)。`OSTIARIUS_TEMPLATE_KEY` は廃止。
+鍵ファイルはホストのディスク暗号化 (BitLocker / LUKS) を前提とし、バックアップ媒体には入れない。
+**鍵を失うと全登録を失う** (再 enroll で復旧する。クラウドエスクローは作らない)。
 
 ### ACME (TLS 証明書 CLI 専用)
 

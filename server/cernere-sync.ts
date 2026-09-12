@@ -30,15 +30,28 @@ export interface SyncOptions {
   cernereBaseUrl: string;
   serviceToken: ServiceTokenProvider;
   intervalMs: number;
+  /**
+   * 顔データの同期 (失効指示・同意の pull)。
+   *
+   * 2026-09-12 以降、顔テンプレートの正本はローカルなので Cernere から取り込むのは
+   * 「消せ」という指示と同意記録だけになった (face/revocation-sync.ts)。passkey 同期と
+   * 同じ 15 分の周期に相乗りさせる。
+   */
+  faceSync?: () => Promise<unknown>;
 }
 
 let timer: NodeJS.Timeout | null = null;
 
+async function syncAll(opts: SyncOptions): Promise<void> {
+  await syncOnce(opts);
+  if (opts.faceSync) await opts.faceSync();
+}
+
 /** 起動時に 1 回同期 → interval で繰り返す。 timer は unref して終了をブロックしない。 */
 export function startCernereSync(opts: SyncOptions): void {
-  void syncOnce(opts);
+  void syncAll(opts);
   if (timer) clearInterval(timer);
-  timer = setInterval(() => void syncOnce(opts), opts.intervalMs);
+  timer = setInterval(() => void syncAll(opts), opts.intervalMs);
   timer.unref?.();
 }
 

@@ -7,6 +7,9 @@
 //   写真を出すのはこのパネル (= 職員がパスキー認証したあとの承認画面) だけ。
 //   出席確認の一般画面には出さない。写真は fetch でその都度取得し、
 //   表示を終えたら objectURL を revoke してブラウザにも残さない。
+//
+// 2026-09-12: 写真の取得先はローカル正本の職員向け API
+// (`GET /identity/face-photo/:userId` — LAN 内 + 職員セッション + 閲覧監査)。
 
 export const REVIEW_PANEL_HTML = `
   <section id="review-panel" hidden>
@@ -89,7 +92,8 @@ async function loadReviewCandidates() {
     item.appendChild(button);
     reviewList.appendChild(item);
   }
-  reviewStatus.textContent = '審査待ちの候補: ' + result.candidates.length + ' 名';
+  reviewStatus.textContent = '審査待ちの候補: ' + result.candidates.length + ' 名'
+    + (result.rosterAvailable ? '' : '（Cernere 名簿を取得できないため、未登録者は表示していません）');
 }
 
 async function openReviewCandidate(candidate) {
@@ -104,7 +108,8 @@ async function openReviewCandidate(candidate) {
   reviewStudentCode.value = '';
   reviewReject.disabled = true;
   reviewSubject.textContent = candidate.hint;
-  const response = await fetch('/identity/review/photo/' + encodeURIComponent(candidate.userId), { headers: reviewHeaders() });
+  if (!candidate.hasPhoto) { reviewStatus.textContent = '未登録（写真の申請はありません）。'; return; }
+  const response = await fetch('/identity/face-photo/' + encodeURIComponent(candidate.userId), { headers: reviewHeaders() });
   if (response.status === 404) { reviewStatus.textContent = '未登録（写真の申請はありません）。'; return; }
   if (!response.ok) { reviewStatus.textContent = '写真を取得できません。'; return; }
   reviewPhotoUrl = URL.createObjectURL(await response.blob());

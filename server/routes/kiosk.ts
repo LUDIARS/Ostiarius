@@ -15,13 +15,12 @@ export function makeKioskRouter(args: {
   authorization: KioskAuthorization;
   pwaOrigin: string;
   sessions: IdentitySessionStore;
-  /** 写真審査 (Cernere の写真 token / 審査者 userId) が揃っている時だけ承認パネルを出す。 */
-  reviewEnabled: boolean;
 }): Hono {
   const router = new Hono();
-  const reviewButton = args.reviewEnabled ? '<button id="review">写真の申請を審査（職員）</button>' : '';
-  const reviewPanel = args.reviewEnabled ? REVIEW_PANEL_HTML : '';
-  const reviewScript = args.reviewEnabled ? REVIEW_PANEL_SCRIPT : '';
+  // 写真と pending テンプレートの正本がローカルになったので、審査パネルは常設。
+  const reviewButton = '<button id="review">写真の申請を審査（職員）</button>';
+  const reviewPanel = REVIEW_PANEL_HTML;
+  const reviewScript = REVIEW_PANEL_SCRIPT;
   router.get('/kiosk/passkey-qr/:sessionId', async (c) => {
     if (!args.authorization.isAuthorized(c)) return c.json({ error: 'kiosk_unauthorized' }, 401);
     const sessionId = c.req.param('sessionId');
@@ -69,6 +68,13 @@ export function makeKioskRouter(args: {
     <p id="shot-progress"></p>
     <button id="capture-shot" disabled>このポーズを撮影</button>
     <button id="cancel-enroll" disabled>中断</button>
+    <fieldset id="photo-upload" hidden>
+      <legend>顔写真を提出して審査に出す（任意）</legend>
+      <p>提出した写真とそこから作る顔データは、この端末の中だけに暗号化して保存します。</p>
+      <input id="photo-file" type="file" accept="image/jpeg,image/png,image/webp">
+      <button id="photo-submit" disabled>写真を提出（審査待ちになります）</button>
+      <p id="photo-status"></p>
+    </fieldset>
   </section>
   ${reviewPanel}
 </main>
@@ -87,6 +93,10 @@ const acceptConsent = document.querySelector('#accept-consent');
 const shotProgress = document.querySelector('#shot-progress');
 const captureShot = document.querySelector('#capture-shot');
 const cancelEnroll = document.querySelector('#cancel-enroll');
+const photoUpload = document.querySelector('#photo-upload');
+const photoFile = document.querySelector('#photo-file');
+const photoSubmit = document.querySelector('#photo-submit');
+const photoStatus = document.querySelector('#photo-status');
 const video = document.querySelector('#camera');
 let sessionId;
 let pollTimer;
@@ -260,7 +270,25 @@ async function beginCapture() {
   enrollmentStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: false });
   video.srcObject = enrollmentStream; video.hidden = false;
   captureShot.disabled = false; cancelEnroll.disabled = false; acceptConsent.disabled = true;
+  photoUpload.hidden = false;
   shotProgress.textContent = '正面を向いて、撮影してください（0/' + shotsRequired + '）。';
+}
+
+async function submitEnrollmentPhoto() {
+  if (!enrollId || !staffSession || !photoFile.files || !photoFile.files[0]) return;
+  photoSubmit.disabled = true;
+  const form = new FormData(); form.set('enrollId', enrollId); form.set('photo', photoFile.files[0]);
+  const response = await fetch('/identity/enroll/photo', { method: 'POST', headers: { 'x-ostiarius-staff': staffSession }, body: form });
+  if (!response.ok) {
+    const failure = await response.json().catch(() => ({}));
+    photoStatus.textContent = failure.error === 'no_face_in_photo'
+      ? '写真から顔を検出できませんでした。別の写真でお試しください。'
+      : '写真を受け付けられませんでした。';
+    photoSubmit.disabled = false;
+    return;
+  }
+  photoFile.value = '';
+  photoStatus.textContent = '写真を受け付けました。職員の承認までは出席照合に使われません。';
 }
 
 async function captureEnrollmentShot() {
@@ -284,6 +312,7 @@ async function captureEnrollmentShot() {
   if (!commit.ok) throw new Error('enroll_commit_failed');
   enrollmentStream.getTracks().forEach((track) => track.stop()); enrollmentStream = undefined;
   captureShot.disabled = true; cancelEnroll.disabled = true; enrollId = undefined;
+  photoUpload.hidden = true; photoStatus.textContent = '';
   shotProgress.textContent = '登録を完了しました。';
 }
 
@@ -291,6 +320,7 @@ async function cancelEnrollment() {
   if (enrollId) await fetch('/identity/enroll/' + encodeURIComponent(enrollId), { method: 'DELETE', headers: { 'x-ostiarius-staff': staffSession } });
   if (enrollmentStream) enrollmentStream.getTracks().forEach((track) => track.stop());
   enrollmentStream = undefined; enrollId = undefined; captureShot.disabled = true; cancelEnroll.disabled = true;
+  photoUpload.hidden = true; photoStatus.textContent = '';
   shotProgress.textContent = '登録を中断しました。';
 }
 
@@ -304,6 +334,8 @@ consentAccepted.onchange = () => { acceptConsent.disabled = !consentAccepted.che
 acceptConsent.onclick = () => beginCapture().catch(() => { enrollStatus.textContent = '同意またはカメラを確認できません。'; });
 captureShot.onclick = () => captureEnrollmentShot().catch(() => { captureShot.disabled = false; shotProgress.textContent = '撮影に失敗しました。もう一度お試しください。'; });
 cancelEnroll.onclick = () => { void cancelEnrollment(); };
+photoFile.onchange = () => { photoSubmit.disabled = !(photoFile.files && photoFile.files[0]); };
+photoSubmit.onclick = () => submitEnrollmentPhoto().catch(() => { photoStatus.textContent = '写真を送信できませんでした。'; photoSubmit.disabled = false; });
 ${reviewScript}
 </script>`, 200, {
       ...PROTECTED_HEADERS,

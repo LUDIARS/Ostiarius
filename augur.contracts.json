@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "contractsDir": "contracts",
+  "importFrom": "../contract-runtime.ts",
+  "contracts": [
+    {
+      "id": "C-1",
+      "criterion": "C-1 loadLocalFaceKeys(dataDir): テンプレート鍵と写真鍵を kiosk ホスト内で生成し、32 byte の別鍵として 0600 の鍵ファイルから返す",
+      "symbol": "loadLocalFaceKeys",
+      "file": "server/face/local-key.ts",
+      "module": "contracts/load-local-face-keys.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-2",
+      "criterion": "C-2 storeFaceTemplate(db, keys, input): 顔テンプレートを AES-256-GCM で封緘した blob と key_id としてのみ永続化する (平文を DB へ書かない)",
+      "symbol": "storeFaceTemplate",
+      "file": "server/face/local-store.ts",
+      "module": "contracts/store-face-template.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-3",
+      "criterion": "C-3 applyFaceRevocations(db, revocations): Cernere の失効指示 1 件につき、その user のテンプレート・写真・同意写しを同時に物理削除する",
+      "symbol": "applyFaceRevocations",
+      "file": "server/face/revocation-sync.ts",
+      "module": "contracts/apply-face-revocations.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-4",
+      "criterion": "C-4 buildFaceRoster(db, keys, modelId, now): state=active かつ同意が有効 (未撤回・365 日以内) のテンプレートだけを照合 roster に載せる",
+      "symbol": "buildFaceRoster",
+      "file": "server/face/template-roster.ts",
+      "module": "contracts/build-face-roster.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-5",
+      "criterion": "C-5 storeFacePhoto(db, keys, input): プロフィール顔写真を写真鍵 (テンプレートとは別鍵) で封緘した blob としてのみ永続化する",
+      "symbol": "storeFacePhoto",
+      "file": "server/face/local-store.ts",
+      "module": "contracts/store-face-photo.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-6",
+      "criterion": "C-6 runFaceBackup(db, options): 暗号化 DB だけをバックアップ先へ複製し、直近 7 世代を残して古い世代を削除する (鍵ファイルは複製しない)",
+      "symbol": "runFaceBackup",
+      "file": "server/face/backup.ts",
+      "module": "contracts/run-face-backup.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    }
+  ]
+}

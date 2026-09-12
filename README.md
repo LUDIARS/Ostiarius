@@ -41,8 +41,12 @@ assertion を検証する。
 |---|---|
 | `server/index.ts` | 起動 (Hono / CORS / sync 開始 / route mount / listen) |
 | `server/config.ts` | env 解決 (必須は未設定で exit、port 等は default 容認) |
-| `server/db.ts` | better-sqlite3 + `credentials` テーブル (公開鍵キャッシュ) |
-| `server/cernere-sync.ts` | Cernere passkey export の起動時 + 定期同期 |
+| `server/db.ts` | better-sqlite3 — `credentials` (公開鍵キャッシュ) と顔データの正本テーブル |
+| `server/cernere-sync.ts` | Cernere passkey export + 失効指示 / 同意 pull の起動時 + 定期同期 |
+| `server/face/local-key.ts` | 顔テンプレート鍵・写真鍵のホスト内生成と保管 (0600 鍵ファイル) |
+| `server/face/local-store.ts` | 顔データのローカル正本の読み書き (封緘 / 開封の境界) |
+| `server/face/revocation-sync.ts` | Cernere の失効指示・同意の pull と物理削除の適用 |
+| `server/face/backup.ts` | 暗号化 DB の日次バックアップ (直近 7 世代) |
 | `server/attestation-key.ts` | Ed25519 鍵の load/create (永続) |
 | `server/attestation.ts` | attestation の sign/verify (CONTRACTS §1 と同形式) |
 | `server/challenge-store.ts` | challenge の TTL 2min in-memory ストア |
@@ -69,9 +73,22 @@ assertion を検証する。
 | `AEDILIS_BASE_URL` | 公開鍵 自己登録先の Aedilis base URL (#167) | _(空=手動)_ |
 | `AEDILIS_ADMIN_TOKEN` | 自己登録に使う admin Bearer (secret) | _(空=手動)_ |
 | `OSTIARIUS_LABEL` | Aedilis に出すゲートウェイ表示ラベル | _(空)_ |
-| `OSTIARIUS_DATA` | data ディレクトリ | `./data` |
+| `OSTIARIUS_DATA` | data ディレクトリ (DB と顔データの封緘鍵) | `./data` |
+| `OSTIARIUS_BACKUP_DIR` | 施設内バックアップの複製先 (鍵とは別媒体) | _(空=無効)_ |
 | `OSTIARIUS_SYNC_INTERVAL_MS` | passkey 同期間隔 | `900000` (15min) |
 | `OSTIARIUS_CHALLENGE_TTL_MS` | challenge TTL | `120000` (2min) |
+
+### 顔データの鍵とホストの前提 (2026-09-12)
+
+顔テンプレートと顔写真の正本は Ostiarius にあり、封緘鍵は **この kiosk ホスト内で生成**して
+`OSTIARIUS_DATA/face-keys.json` (0600、テンプレートと写真で別鍵) に置く。env / Infisical では
+配らない ([`spec/plan/face-data-local-only.md`](spec/plan/face-data-local-only.md) §3)。
+
+- **ホストのディスク暗号化 (BitLocker / LUKS) が必須条件。** 鍵ファイルは平文で置かれるため、
+  ホストを持ち出されると暗号化 DB と鍵が同時に渡る。TPM 封緘 / OS 資格情報ストアへの格納は未決 (同 §8)。
+- `OSTIARIUS_BACKUP_DIR` を `OSTIARIUS_DATA` と同じにしない (DB と鍵を同じ媒体に置かない)。
+- **鍵を失うと全登録を失う。** 復旧は kiosk での再 enroll で、鍵のクラウドエスクローは作らない。
+- 顔データを施設外へ出さないので、`/identity/face-photo/:userId` を Cloudflare Tunnel 等で公開しない。
 
 > **secret の供給**: `CERNERE_PROJECT_CLIENT_SECRET` / `OSTIARIUS_KIOSK_TOKEN` / `OSTIARIUS_PRIVATE_KEY` /
 > `AEDILIS_ADMIN_TOKEN` は平文保存しない方針 ([[feedback_config_and_secrets]])。

@@ -1,13 +1,14 @@
 {
   "name": "face-verification",
-  "description": "顔テンプレートの暗号化キャッシュ、1:N照合、生体チャレンジ、ローカル推論sidecarと出席attestation送信を分離する本人確認ドメイン。",
+  "description": "顔テンプレート・顔写真を施設 kiosk ホスト内に封緘保存する正本ドメイン。ホスト内生成の鍵、1:N照合、生体チャレンジ、写真由来 pending の職員審査、Cernere からの失効指示の適用、施設内バックアップ、ローカル推論sidecarと出席attestation送信を分離する。",
   "presetRules": [],
   "templateRules": [],
   "specRefs": [
     "feature: 顔認証 + 生体性確認",
-    "feature: 顔テンプレート登録"
+    "feature: 顔テンプレート登録",
+    "plan: 顔データの保存先を Ostiarius ローカルに限定する"
   ],
-  "rationale": "生体情報を画像として永続化せず、照合・送信・外部連携を明確な境界で扱うため。",
+  "rationale": "生体情報を施設外へ出さず (spec/plan/face-data-local-only.md)、平文をディスクへ落とさないために、封緘・照合・審査・削除・バックアップの境界をこのドメインへ閉じる。",
   "membership": [
     {
       "pathPattern": "(^|/)server/face/[^/]+$"
@@ -19,7 +20,7 @@
       "pathPattern": "(^|/)face-sidecar/(?:.*/)?[^/]+$"
     },
     {
-      "pathPattern": "(^|/)test/(?:face|face-review|identity|identity-enroll-consent|no-biometric-log)\\.test\\.ts$"
+      "pathPattern": "(^|/)test/(?:face[a-z0-9-]*|identity[a-z0-9-]*|no-biometric-log)\\.test\\.ts$"
     }
   ]
 }

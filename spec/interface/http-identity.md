@@ -61,16 +61,29 @@ assertion 自体を認証境界とする公開 API で、kiosk token を要求�
 
 ### `POST /identity/enroll/consent`
 - req: `{ enrollId, accepted: true }` → Cernere に同意を先行記録 (`POST /api/identity/face-consent`)
+- res 200: `{ ok: true, policyVersion }` — Cernere が受理した版 (新版が未対応なら旧版へ落ちる)。
+  同意の写しを Ostiarius にも保存し、照合可否 (未撤回・365 日以内) を Cernere 不通時にも判定する。
 
 ### `POST /identity/enroll/frame`
 - req: multipart `enrollId`, `frame`, `pose` (`front|left|right|up|glasses|noglasses`)
 - res 200: `{ accepted: bool, hint, shotsDone, shotsRequired, warning?: 'duplicate_of_other_user' }`
 
+### `POST /identity/enroll/photo`
+- req: multipart `enrollId`, `photo` (JPEG/PNG/WebP ≤ 2MB)。**LAN 内 + 職員セッション必須**。
+- 処理: 写真を封緘保存し、ローカル sidecar で抽出した 512d を `state='pending'` で保管する。
+  顔を検出できなければ写真もテンプレートも保存しない (422 `no_face_in_photo`)。
+- res 200: `{ ok: true, state: 'pending', version }`。同意前は 409、LAN 外は 403 `lan_only`。
+
 ### `POST /identity/enroll/commit`
-- 平均テンプレート → Cernere `PUT /api/identity/face-template` → ローカル upsert
+- 平均テンプレート → **ローカル正本へ封緘保存** (`state='active'`)。Cernere へは送らない。
 - res 200: `{ ok: true, version }`
 
 ### `DELETE /identity/enroll/:enrollId` — 中断 (メモリ上のショットを破棄)
+
+### `DELETE /identity/enroll/registration/:userId`
+- kiosk 上での本人による登録削除 (職員立会い)。**LAN 内 + 職員セッション必須**。
+- テンプレート・写真・同意の写しを即時に物理削除し、Cernere への同意撤回は outbox で再送する。
+- res 200: `{ ok: true, removed: { templates, photos, consents } }`、無ければ 404。
 
 ## 職員 override
 
@@ -85,7 +98,15 @@ assertion 自体を認証境界とする公開 API で、kiosk token を要求�
 - req: `{ subjectUserId, reasonCode: 'camera_down' | 'face_reject' | 'no_device' | 'other', reasonText? }`
 - res 200: `{ ok, method: 'staff_override' }` (attestation は Aedilis へ送信)。日次上限超過 429。
 
+## 顔写真 (職員向け)
+
+### `GET /identity/face-photo/:userId`
+- **LAN 内 + 職員セッション (`X-Ostiarius-Staff`) 必須。** 施設外 (Cloudflare Tunnel 等) へ公開しない。
+- 応答は画像バイナリ + `Cache-Control: private, no-store`。取得は 1 件ずつ (一括の口は作らない)。
+- 誰がどの生徒の写真を見たかを監査ログ (`kind='photo_view'`) に残す。kiosk 待機画面には出さない。
+- 404 `photo_not_found` / 401 `staff_unauthorized` / 403 `lan_only`。
+
 ## 管理
 
-### `POST /identity/admin/sync` — 即時 sync (職員セッション必須)
-### `GET /api/health` — 既存に `faceTemplates` 件数 / `sidecar: { ok, modelId }` / `outbox` 件数を追加
+### `POST /identity/admin/sync` — 失効指示・同意の即時 pull (職員セッション必須)
+### `GET /api/health` — 既存に `faceTemplates` (active) / `facePending` / `sidecar: { ok, modelId }` / `outbox` 件数を追加
