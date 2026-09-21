@@ -16,6 +16,8 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
+import { createServer as createHttpsServer } from 'node:https';
+import type { AddressInfo } from 'node:net';
 
 import { loadConfig } from './config.ts';
 import { openDb, countCredentials, countFaceTemplates, countOutbox, rotateFaceEvents } from './db.ts';
@@ -30,6 +32,7 @@ import { makeMobileCheckinRouter } from './routes/mobile-checkin.ts';
 import { makeIdentityRouter } from './routes/identity.ts';
 import { makeKioskRouter } from './routes/kiosk.ts';
 import { createVantanUserClient } from './vantan-user-client.ts';
+import { createLanBaseUrlResolver } from './lan-route.ts';
 import { createSidecarClient } from './face/sidecar-client.ts';
 import { buildFaceRoster } from './face/template-roster.ts';
 import { FaceVerificationFlow } from './face/verification-flow.ts';
@@ -90,7 +93,7 @@ const syncFaceNow = (): Promise<unknown> => syncFaceData({
   facilityId: config.facilityId,
 });
 
-startCernereSync({
+const stopCernereSync = startCernereSync({
   db,
   cernereBaseUrl: config.cernereBaseUrl,
   serviceToken: cernereServiceToken,
@@ -128,11 +131,21 @@ app.use(
   }),
 );
 
+// 会場端末の接続先は日によって変わる。 /api/health は Excubitor が定期的に叩くので、
+// 検出結果は TTL キャッシュして毎回 UDP socket を張らない (lan-route.ts)。
+const resolveLanBaseUrl = createLanBaseUrlResolver(config.port, {
+  protocol: config.tls.enabled ? 'https' : 'http',
+  hostname: config.tls.enabled ? config.tls.hostname : undefined,
+});
+
 app.get('/api/health', async (c) => {
   const sidecarHealth = await sidecar.health().catch(() => ({ ok: false, modelId: '' }));
+  const lanUrl = await resolveLanBaseUrl();
   return c.json({
     ok: true,
     service: 'ostiarius',
+    version: process.env.npm_package_version ?? '0.1.0',
+    lanUrl,
     lanId: config.lanId,
     facilityId: config.facilityId,
     credentials: countCredentials(db),
@@ -236,8 +249,9 @@ function provisionGatewayKey(): void {
   console.log('[ostiarius] ──────────────────────────────────────────────────────────────────');
 }
 
-serve({ fetch: app.fetch, port: config.port }, (info) => {
-  console.log(`[ostiarius] listening on http://0.0.0.0:${info.port}`);
+function onListening(info: AddressInfo): void {
+  const protocol = config.tls.enabled ? 'https' : 'http';
+  console.log(`[ostiarius] listening on ${protocol}://0.0.0.0:${info.port}`);
   console.log(`[ostiarius] lanId=${config.lanId} facilityId=${config.facilityId}`);
   console.log(`[ostiarius] rpId=${config.rpId} pwaOrigin=${config.pwaOrigin}`);
   console.log(`[ostiarius] cernere=${config.cernereBaseUrl}`);
@@ -247,4 +261,31 @@ serve({ fetch: app.fetch, port: config.port }, (info) => {
     `[ostiarius] mobile-checkin: wifiQr=${config.wifiSsid ? 'on' : 'off'} vantanUserEnrichment=${vantanUserClient ? 'on' : 'off'} aedilis=${config.aedilisBaseUrl || '(未設定)'}`,
   );
   provisionGatewayKey();
-});
+}
+
+// TLS を有効にした会場では HTTP へ落ちない (resolveTlsConfig が不完全な設定で起動を止める)。
+// 証明書は server/acme の CLI が発行し、運用者が Infisical へ登録したものを受け取る。
+const server = config.tls.enabled
+  ? serve({
+    fetch: app.fetch,
+    port: config.port,
+    createServer: createHttpsServer,
+    serverOptions: {
+      cert: config.tls.certificatePem,
+      key: config.tls.privateKeyPem,
+    },
+  }, onListening)
+  : serve({ fetch: app.fetch, port: config.port }, onListening);
+
+// Excubitor の再起動で listen socket と Cernere WS を確実に手放す
+// (TLS listener を握ったままだと次の起動が同じ port を掴めない)。
+let isShuttingDown = false;
+function shutdown(): void {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  stopCernereSync();
+  vantanUserClient?.close();
+  server.close();
+}
+process.once('SIGINT', shutdown);
+process.once('SIGTERM', shutdown);

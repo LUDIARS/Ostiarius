@@ -136,6 +136,7 @@ export class VantanUserClient {
   start(): void {
     this.closedByCaller = false;
     this.connect().catch((err) => {
+      if (this.closedByCaller) return;
       const delay = this.reconnectDelayMs;
       console.warn(`[ostiarius] vantan_user project connect 失敗 (起動時): ${(err as Error).message} — ${delay}ms 後に再試行`);
       this.scheduleReconnect();
@@ -161,11 +162,20 @@ export class VantanUserClient {
   /** 単発の接続試行。 失敗時は throw する (呼び出し側が retry を仕切る)。 */
   async connect(): Promise<void> {
     const token = await this.fetchProjectToken();
+    if (this.closedByCaller) throw new Error('VantanUserClient closed');
     const url = toProjectWsUrl(this.cernereBaseUrl);
     await new Promise<void>((resolve, reject) => {
       const ws = this.createWs(url, ['bearer', token]);
+      // CONNECTING 中の close() でも socket を所有・解放できるよう即時に保持する。
+      this.ws = ws;
       let settled = false;
       ws.onopen = () => {
+        if (this.closedByCaller) {
+          settled = true;
+          ws.close();
+          reject(new Error('VantanUserClient closed'));
+          return;
+        }
         settled = true;
         this.ws = ws;
         console.log('[ostiarius] vantan_user project WS connected');
@@ -178,7 +188,8 @@ export class VantanUserClient {
         }
       };
       ws.onclose = (ev) => {
-        this.ws = null;
+        // 遅れて届いた旧 socket の close で、新しい接続を消さない。
+        if (this.ws === ws) this.ws = null;
         const code = ev && typeof ev.code === 'number' ? ev.code : 0;
         if (!settled) {
           settled = true;
@@ -191,6 +202,7 @@ export class VantanUserClient {
           p.reject(new Error('vantan_user project WS disconnected'));
         }
         this.pending.clear();
+        if (this.closedByCaller) return;
         console.warn(`[ostiarius] vantan_user project WS 切断 (code=${code}) — ${this.reconnectDelayMs}ms 後に再接続`);
         this.scheduleReconnect();
       };
@@ -203,6 +215,7 @@ export class VantanUserClient {
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       this.connect().catch((err) => {
+        if (this.closedByCaller) return;
         console.warn(`[ostiarius] vantan_user project 再接続失敗: ${(err as Error).message} — ${this.reconnectDelayMs}ms 後に再試行`);
         this.scheduleReconnect();
       });
@@ -213,6 +226,8 @@ export class VantanUserClient {
   private async fetchProjectToken(): Promise<string> {
     const res = await this.fetchImpl(`${this.cernereBaseUrl}/api/auth/login`, {
       method: 'POST',
+      // 307/308 redirect で project secret を別 endpoint へ転送しない。
+      redirect: 'error',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         grant_type: 'project_credentials',

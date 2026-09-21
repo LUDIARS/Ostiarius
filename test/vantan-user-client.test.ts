@@ -255,6 +255,28 @@ describe('VantanUserClient — not connected', () => {
     });
     await expect(client.getVantanUserProfile('user-1')).rejects.toThrow(/not connected/);
   });
+
+  it('closes a socket that is still connecting', async () => {
+    const sockets: FakeWebSocket[] = [];
+    const client = new VantanUserClient({
+      cernereBaseUrl: 'https://cernere.example.com',
+      clientId: 'ostiarius',
+      clientSecret: 's3cret',
+      fetchImpl: makeFetchOk(),
+      createWebSocket: (url, protocols) => {
+        const socket = new FakeWebSocket(url, protocols);
+        sockets.push(socket);
+        return socket;
+      },
+    });
+
+    const connecting = client.connect();
+    await flush();
+    client.close();
+
+    await expect(connecting).rejects.toThrow(/closed/);
+    expect(sockets[0]?.readyState).toBe(3);
+  });
 });
 
 describe('VantanUserClient — reconnect', () => {

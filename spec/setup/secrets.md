@@ -15,6 +15,8 @@ Bibliotheca と同パターン。
 | `CLOUDFLARE_DNS_API_TOKEN` | ACME DNS-01 の TXT 操作 (CLI 専用) | Infisical |
 | `OSTIARIUS_KIOSK_TOKEN` | kiosk / enroll 画面、session 管理、登録 QR の共有トークン | Infisical |
 | `AEDILIS_GATEWAY_TOKEN` | kiosk 直接送信 (`/api/checkin/gateway-verify`) の Bearer (P3〜) | Infisical |
+| `OSTIARIUS_TLS_PRIVATE_KEY_PEM` | LAN HTTPS 証明書の秘密鍵 (`tls:issue` が発行したものを登録) | Infisical |
+| `OSTIARIUS_TLS_CERTIFICATE_PEM` | 同上の公開 CA 証明書チェーン | Infisical |
 
 これらは `env-cli.config.ts` の `infraKeys` に default を置かず、必ず Infisical から供給する。
 
@@ -35,7 +37,9 @@ Bibliotheca と同パターン。
 - `required.production`: `OSTIARIUS_LAN_ID` / `OSTIARIUS_FACILITY_ID` / `CERNERE_BASE_URL`
   / `OSTIARIUS_RP_ID` / `OSTIARIUS_PWA_ORIGIN` /
   `OSTIARIUS_KIOSK_TOKEN` / `OSTIARIUS_PRIVATE_KEY`
-  (本番は秘密鍵を inject、平文ファイルを使わない)。
+  (本番は秘密鍵を inject、平文ファイルを使わない) /
+  `OSTIARIUS_TLS_MODE` / `OSTIARIUS_LAN_HOSTNAME` / `OSTIARIUS_TLS_CERTIFICATE_PEM` /
+  `OSTIARIUS_TLS_PRIVATE_KEY_PEM` (本番の会場 LAN は HTTPS で配信する)。
   `CERNERE_SERVICE_TOKEN` は required に含めない — Excubitor が注入する
   `CERNERE_PROJECT_CLIENT_ID` / `_SECRET` から取り直すのが通常経路で、固定 token は
   それが無い手動起動のときだけ使う。

@@ -6,6 +6,7 @@
 
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { resolveTlsConfig, type OstiariusTlsConfig } from './tls-config.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -57,6 +58,9 @@ export interface OstiariusConfig {
   cernereServiceToken: string;
   rpId: string;
   pwaOrigin: string;
+  /** OSTIARIUS_TLS_MODE / OSTIARIUS_LAN_HOSTNAME / OSTIARIUS_TLS_*_PEM の解決結果。
+   *  証明書は server/acme の CLI が発行し、運用者が Infisical に登録したものを受け取る。 */
+  tls: OstiariusTlsConfig;
   keyPath: string;
   /** OSTIARIUS_PRIVATE_KEY — Infisical inject の PKCS#8 PEM (本番、 空なら file 経路) */
   privateKeyPem: string;
@@ -124,6 +128,7 @@ export function loadConfig(): OstiariusConfig {
     cernereServiceToken: optionalEnv('CERNERE_SERVICE_TOKEN', ''),
     rpId: requireEnv('OSTIARIUS_RP_ID'),
     pwaOrigin: normalizeHttpOrigin('OSTIARIUS_PWA_ORIGIN', requireEnv('OSTIARIUS_PWA_ORIGIN')),
+    tls: resolveTlsConfig(),
     keyPath: resolve(optionalEnv('OSTIARIUS_KEY_PATH', join(dataDir, 'gateway.key'))),
     // 本番は Infisical / secret-agent が PEM を inject する。 dev は file 経路。
     privateKeyPem: optionalEnv('OSTIARIUS_PRIVATE_KEY', ''),

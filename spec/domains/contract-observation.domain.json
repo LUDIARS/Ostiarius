@@ -1,11 +1,14 @@
 {
   "name": "contract-observation",
-  "description": "Augur の contract-wrap で受け入れ条件を実行時に観測する層。augur.contracts.json が契約 (C-n) と述語モジュールを宣言し、server/contract-runtime.ts がVestigium 互換 JSONL へ記録する。対象関数の戻り値・例外・同期非同期性は変えない。",
+  "description": "Augur の contract-wrap で受け入れ条件を実行時に観測する層。augur.contracts.json が契約 (C-n) と述語モジュールを宣言し、server/contract-runtime.ts がVestigium 互換 JSONL へ記録する (リポジトリ直下の contract-runtime.ts は注入先の深さを吸収する再輸出)。対象関数の戻り値・例外・同期非同期性は変えない。",
   "presetRules": [],
   "templateRules": [],
   "membership": [
     {
       "pathPattern": "(^|/)server/contract-runtime\\.ts$"
+    },
+    {
+      "pathPattern": "^contract-runtime\\.ts$"
     },
     {
       "pathPattern": "(^|/)contracts/[^/]+\\.contract\\.ts$"

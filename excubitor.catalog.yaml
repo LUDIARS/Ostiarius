@@ -63,6 +63,9 @@ services:
         keys: [EXCUBITOR_CERNERE_CLIENT_ID, EXCUBITOR_CERNERE_CLIENT_SECRET]
     cernere_launch_credentials:
       target_project: ostiarius
+    # OSTIARIUS_TLS_MODE=required に切り替える際は、 health.url と provides の scheme /
+    # host も https://${OSTIARIUS_LAN_HOSTNAME} に揃えること (証明書は localhost 名では
+    # 検証できず、 http のままだと health check が TLS ハンドシェイクで落ちる)。
     health:
       type: http
       url: http://localhost:17590/api/health

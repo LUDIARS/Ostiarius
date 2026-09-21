@@ -2,7 +2,8 @@
 
 Ostiarius (Hono + `@hono/node-server`) が会場 LAN 上で公開する HTTP 接点。
 listen: `0.0.0.0:{OSTIARIUS_PORT}` (既定 17590)。実装: `server/index.ts`、
-`server/routes/checkin.ts`。
+`server/routes/checkin.ts`。scheme は `OSTIARIUS_TLS_MODE` 次第で `http` / `https`
+([feature/lan-https-and-lan-url.md](../feature/lan-https-and-lan-url.md))。
 
 ## CORS / 認証境界
 
@@ -65,15 +66,37 @@ assertion を検証し、OK なら attestation を署名して返す。
 
 - res 200: `{ lanId, facilityId, publicKeyPem }` — 初回 provision (Aedilis 登録) 用の公開鍵。
 
+## mobile-checkin フォールバック
+
+- `GET /mobile-checkin` — Wi-Fi QR と email/password form を含む単一 HTML page。
+- `GET /mobile-checkin/wifi-qr.png` — WPA Wi-Fi QR の PNG。SSID 未構成時は 404。
+- `POST /checkin/mobile-login` — `OSTIARIUS_LEGACY_METHODS` に `password` を明示した
+  施設だけで mount する低保証の互換経路 (既定は route 自体が無く `404`)。
+  - req: `{ email: string, password: string }`。欠落時は 400。
+  - res 200: `{ accessToken, attestation, profile }`。`attestation` は passkey 経路と同じ
+    署名形式で、payload の `method` は `password` / `assurance` は `low`。
+  - 認証失敗 / MFA / Cernere 不通は、credential の詳細を漏らさない利用者向けエラー (401)。
+  - `profile` enrichment は best-effort で、取得不能時は `null`。
+
+詳細: [feature/mobile-checkin-fallback.md](../feature/mobile-checkin-fallback.md)。
+
 ## `GET /api/health`
 
-- res 200: `{ ok: true, service: 'ostiarius', lanId, facilityId, credentials, methods }`
+- res 200: `{ ok: true, service: 'ostiarius', version, lanUrl, lanId, facilityId, credentials, methods }`
+  (顔認証の稼働状況 `faceTemplates` / `facePending` / `sidecar` / `outbox` も併せて返す)
   - `credentials` = `countCredentials(db)` (キャッシュ件数)。
   - `methods` = `['passkey', ...有効化済みの session/password]`。
+  - `version` = `npm_package_version` (無ければ `'0.1.0'`)。
+  - `lanUrl` = 会場 LAN のブラウザから到達できる base URL。TLS 有効時は
+    `https://{OSTIARIUS_LAN_HOSTNAME}:{port}`、無効時は現在の Wi-Fi / デフォルト経路の
+    プライベート IPv4。**曖昧なら誤った経路を広告せず `null`**
+    ([feature/lan-https-and-lan-url.md](../feature/lan-https-and-lan-url.md))。
+- 無認証。LAN のトポロジ (`lanUrl`) を含むため、この API を LAN 外に露出させない。
 
 ## 関連
 
 - 機能詳細: [feature/checkin-verification.md](../feature/checkin-verification.md)
+- mobile fallback: [feature/mobile-checkin-fallback.md](../feature/mobile-checkin-fallback.md)
 - 本人確認ゲート (`/identity/*`、`method` / `assurance` 付き attestation): [interface/http-identity.md](./http-identity.md)
 - `POST /identity/passkey/begin|finish` は上記 `/checkin/begin|finish` と同じ WebAuthn 検証を共有する。
 - env (port / origin / rpId): [setup/configuration.md](../setup/configuration.md)

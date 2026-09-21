@@ -1,0 +1,41 @@
+{
+  "name": "lan-https-endpoint",
+  "description": "会場 LAN 上での到達面の決定: TLS 設定の fail-fast な解決 (off / required の 2 値、不完全なら起動を止め HTTP へ落ちない) と、いま来場者に見せられる LAN URL の自動検出 (プライベート IPv4 のみ、Wi-Fi 優先、曖昧なら null)。検出結果は /api/health 用に TTL キャッシュする。",
+  "presetRules": [],
+  "templateRules": [],
+  "membership": [
+    {
+      "pathPattern": "/server/tls-config\\.ts"
+    },
+    {
+      "pathPattern": "/server/lan-route\\.ts"
+    },
+    {
+      "namePattern": "resolveTlsConfig"
+    },
+    {
+      "namePattern": "detectLanIpv4"
+    },
+    {
+      "namePattern": "detectLanBaseUrl"
+    },
+    {
+      "namePattern": "detectDefaultRouteAddress"
+    },
+    {
+      "namePattern": "createLanBaseUrlResolver"
+    },
+    {
+      "pathPattern": "(^|/)server/(?:tls-config|lan-route)\\.ts$"
+    },
+    {
+      "pathPattern": "(^|/)test/(?:tls-config|lan-route)\\.test\\.ts$"
+    }
+  ],
+  "cardTemplate": "Summarise the \"lan-https-endpoint\" domain: 会場 LAN 上での到達面の決定: TLS 設定の fail-fast な解決 (off / required の 2 値、不完全なら起動を止め HTTP へ落ちない) と、いま来場者に見せられる LAN URL の自動検出 (プライベート IPv4 のみ、Wi-Fi 優先、曖昧なら null)。",
+  "specRefs": [
+    "feature: LAN 内 HTTPS と LAN URL の広告",
+    "interface: HTTP エンドポイント (Ostiarius が公開する API) / GET /api/health"
+  ],
+  "rationale": "証明書を発行する tls-acme-dns01 (運用 CLI) とは別に、発行済みの証明書と現在のネットワークから『どの URL で HTTPS 配信するか』を決める実行時の関心。gateway-bootstrap はこの決定を受け取って listen / health に流すだけの配線層なので、判断ロジックを独立させる。"
+}

@@ -11,6 +11,8 @@
 import type Database from 'better-sqlite3';
 import type { ServiceTokenProvider } from './cernere-service-token.ts';
 import { countCredentials, upsertCredential } from './db.ts';
+import { contract } from '../contract-runtime.ts'; /* augur-inject:import:1f79a83e */
+import augurContract_c95e26f4 from '../contracts/start-cernere-sync.contract.ts'; /* augur-inject:contract-predicate:cb715ca1 */
 
 interface ExportedCredential {
   userId: string;
@@ -47,13 +49,26 @@ async function syncAll(opts: SyncOptions): Promise<void> {
   if (opts.faceSync) await opts.faceSync();
 }
 
-/** 起動時に 1 回同期 → interval で繰り返す。 timer は unref して終了をブロックしない。 */
-export function startCernereSync(opts: SyncOptions): void {
+/**
+ * 起動時に 1 回同期 → interval で繰り返す。 timer は unref して終了をブロックしない。
+ *
+ * 戻り値はこの呼び出しが張った interval を止める disposer。 SIGTERM で listen socket を
+ * 手放すときに、 停止途中の同期が走らないようにするために使う (server/index.ts)。
+ */
+export function startCernereSync(opts: SyncOptions): () => void {
   void syncAll(opts);
   if (timer) clearInterval(timer);
-  timer = setInterval(() => void syncAll(opts), opts.intervalMs);
-  timer.unref?.();
+  const started = setInterval(() => void syncAll(opts), opts.intervalMs);
+  started.unref?.();
+  timer = started;
+  return () => {
+    clearInterval(started);
+    // 後から start し直された interval を、 古い disposer で消さない。
+    if (timer === started) timer = null;
+  };
 }
+// @ts-expect-error augur-inject
+startCernereSync = contract(startCernereSync, { ...augurContract_c95e26f4, contractId: 'C-9', mode: 'observe', sample: 1, where: 'server/cernere-sync.ts:56', rule: 'contract-wrap', id: 'c95e26f4' }); /* augur-inject:contract-wrap:c95e26f4 */
 
 /** 1 回分の同期。 例外は握りつぶし warn — 前回キャッシュで運用継続できるようにする。 */
 export async function syncOnce(opts: SyncOptions): Promise<{ ok: boolean; synced: number }> {

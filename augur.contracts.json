@@ -56,6 +56,33 @@
       "module": "contracts/run-face-backup.contract.ts",
       "mode": "observe",
       "sample": 1
+    },
+    {
+      "id": "C-7",
+      "criterion": "C-7 resolveTlsConfig(env): OSTIARIUS_TLS_MODE=required では証明書 3 値が揃った設定だけを返し、欠落・不正な hostname では throw して HTTP 起動へ落ちない (例外に鍵の中身を載せない)",
+      "symbol": "resolveTlsConfig",
+      "file": "server/tls-config.ts",
+      "module": "contracts/resolve-tls-config.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-8",
+      "criterion": "C-8 detectLanBaseUrl(port, options): 広告する LAN URL を証明書ホスト名かプライベート IPv4 に限り、決められないときは null を返す",
+      "symbol": "detectLanBaseUrl",
+      "file": "server/lan-route.ts",
+      "module": "contracts/detect-lan-base-url.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-9",
+      "criterion": "C-9 startCernereSync(opts): 起動した同期 interval を停止できる disposer を返す (SIGTERM 時に listen socket と一緒に手放せる)",
+      "symbol": "startCernereSync",
+      "file": "server/cernere-sync.ts",
+      "module": "contracts/start-cernere-sync.contract.ts",
+      "mode": "observe",
+      "sample": 1
     }
   ]
 }

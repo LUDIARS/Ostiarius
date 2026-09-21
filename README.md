@@ -68,6 +68,10 @@ assertion を検証する。
 | `OSTIARIUS_PWA_ORIGIN` | CORS 許可 + expectedOrigin の PWA origin | **必須** |
 | `CERNERE_FRONTEND_URL` | パスキー登録QRの Cernere frontend origin | `CERNERE_BASE_URL` |
 | `OSTIARIUS_KIOSK_TOKEN` | `/kiosk` の共有トークン (**LAN の他端末向け**。同一ホストの kiosk ブラウザは loopback 判定で素通し) | **必須** |
+| `OSTIARIUS_TLS_MODE` | `off` または `required`。本番LANは `required` | `off` |
+| `OSTIARIUS_LAN_HOSTNAME` | LAN DNSでプライベートIPへ解決する証明書ホスト名 | TLS時必須 |
+| `OSTIARIUS_TLS_CERTIFICATE_PEM` | 公開CAの証明書チェーンPEM | TLS時必須 |
+| `OSTIARIUS_TLS_PRIVATE_KEY_PEM` | 証明書秘密鍵PEM。Infisicalのみ | TLS時必須 |
 | `OSTIARIUS_PRIVATE_KEY` | Ed25519 秘密鍵 (PKCS#8 PEM)。**本番は Infisical 経由で inject** (secret) | _(空)_ |
 | `OSTIARIUS_KEY_PATH` | Ed25519 秘密鍵の **dev 用** 永続ファイル (env 未設定時のみ。無ければ生成) | `data/gateway.key` |
 | `AEDILIS_BASE_URL` | 公開鍵 自己登録先の Aedilis base URL (#167) | _(空=手動)_ |
@@ -111,7 +115,17 @@ assertion を検証する。
 - kiosk の session 管理と `GET /identity/passkey/register-hint` は `X-Ostiarius-Kiosk`
   または `/kiosk` が発行した短命 HttpOnly cookie を要求する。
 - `GET /gateway-public-key` → `{ lanId, facilityId, publicKeyPem }` (初回 provision 用)。
-- `GET /api/health` → `{ ok, service, lanId, facilityId, credentials, methods }`。
+- `GET /api/health` → `{ ok, service, version, lanUrl, lanId, facilityId, credentials, methods }`。
+  `lanUrl` は現在接続中の Wi-Fi インターフェース、または OS のデフォルト経路から
+  自動検出する。曖昧な場合は誤った経路を広告せず `null` を返す。
+  `/checkin/*` はCloudflare Tunnel等へ公開せず、会場LAN内のブラウザから直接利用する。
+
+### LAN-only HTTPS
+
+本番は `OSTIARIUS_TLS_MODE=required` とし、DNS-01で取得した公開CA証明書 (`npm run tls:issue`
+/ `tls:renew`、[`spec/feature/lan-tls-certificate.md`](spec/feature/lan-tls-certificate.md)) を
+Infisicalから注入する。`OSTIARIUS_LAN_HOSTNAME` はLAN DNS上で現在の会場端末IPへ
+解決させる。TLS設定が不足している場合、HTTPへフォールバックせず起動に失敗する。
 
 ## 起動手順
 

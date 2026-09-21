@@ -25,6 +25,10 @@ env-cli (Infisical) 設定は `env-cli.config.ts`。
 | `CERNERE_SERVICE_TOKEN` | 手発行の固定 service Bearer (**secret**)。**TTL 60 分**で失効するため一時確認用 | — | 任意 |
 | `OSTIARIUS_RP_ID` | WebAuthn rpID (Cernere と同 eTLD+1) | — | **必須** |
 | `OSTIARIUS_PWA_ORIGIN` | CORS 許可 + expectedOrigin の PWA origin | — | **必須** |
+| `OSTIARIUS_TLS_MODE` | `off` / `required` のみ。本番 LAN は `required` | `off` | |
+| `OSTIARIUS_LAN_HOSTNAME` | LAN DNS で会場端末のプライベート IP に解決する証明書ホスト名 | `''` | `required` 時 必須 |
+| `OSTIARIUS_TLS_CERTIFICATE_PEM` | 公開 CA の証明書チェーン PEM | `''` | `required` 時 必須 |
+| `OSTIARIUS_TLS_PRIVATE_KEY_PEM` | 証明書の秘密鍵 PEM (**secret**) | `''` | `required` 時 必須 |
 | `OSTIARIUS_PRIVATE_KEY` | Ed25519 秘密鍵 PKCS#8 PEM。本番は inject (**secret**) | `''` (空→file 経路) | 本番 必須 |
 | `OSTIARIUS_KEY_PATH` | dev 用 秘密鍵ファイル (env 未設定時、無ければ生成) | `{dataDir}/gateway.key` | |
 | `AEDILIS_BASE_URL` | 公開鍵 自己登録先 (末尾 `/` 除去) | `''` (空=手動) | |
@@ -63,7 +67,8 @@ env-cli (Infisical) 設定は `env-cli.config.ts`。
 
 ### ACME (TLS 証明書 CLI 専用)
 
-server 本体では読まず、`npm run tls:issue` / `tls:renew` だけが使う
+`npm run tls:issue` / `tls:renew` 用 (`OSTIARIUS_LAN_HOSTNAME` だけは発行した証明書を
+配信する server 本体も読む — 上の LAN HTTPS 3 値と同じ値にする)
 ([feature/lan-tls-certificate.md](../feature/lan-tls-certificate.md))。
 空文字 / 空白のみは「未設定」と同じ扱い。
 
@@ -80,6 +85,11 @@ server 本体では読まず、`npm run tls:issue` / `tls:renew` だけが使う
 > `OSTIARIUS_PRIVATE_KEY` は config 上は default 空 (空なら file 経路にフォールバック)
 > だが、`env-cli.config.ts` の `required.production` に含まれており **本番では必須**
 > (平文ファイルを使わない、[setup/secrets.md](./secrets.md))。
+
+> `OSTIARIUS_TLS_MODE=required` のとき、TLS 3 値 (`OSTIARIUS_LAN_HOSTNAME` /
+> `OSTIARIUS_TLS_CERTIFICATE_PEM` / `OSTIARIUS_TLS_PRIVATE_KEY_PEM`) のどれかが欠けると
+> 起動を止める (**HTTP へフォールバックしない**)。`off` / `required` 以外の値でも起動しない。
+> 詳細は [feature/lan-https-and-lan-url.md](../feature/lan-https-and-lan-url.md)。
 
 ### env の供給経路
 

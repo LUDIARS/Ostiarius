@@ -15,7 +15,9 @@ import type { EnvCliConfig } from "../Cernere/packages/env-cli/src/types.js";
  *   - OSTIARIUS_PRIVATE_KEY   : Ed25519 秘密鍵 (PKCS#8 PEM)。 本番はこれを inject し
  *                               平文ファイル (OSTIARIUS_KEY_PATH) を置かない
  *   - AEDILIS_ADMIN_TOKEN     : 公開鍵 自己登録の admin Bearer
- * これらは infraKeys にデフォルト値を置かず、 必ず Infisical から供給する。
+ *   - OSTIARIUS_TLS_PRIVATE_KEY_PEM : LAN HTTPS の秘密鍵
+ * Cernere project credential は Infisical に固定保存せず、Excubitor から起動時に供給する。
+ * その他の secret は infraKeys にデフォルト値を置かず、Infisical から供給する。
  */
 
 const config: EnvCliConfig = {
@@ -42,6 +44,11 @@ const config: EnvCliConfig = {
     OSTIARIUS_PWA_ORIGIN: "",
     OSTIARIUS_LEGACY_METHODS: "",
     // OSTIARIUS_KIOSK_TOKEN は secret — Infisical のみ (default を置かない)
+
+    // ─── LAN-only HTTPS ──────────────────────────────────────
+    OSTIARIUS_TLS_MODE: "off",
+    OSTIARIUS_LAN_HOSTNAME: "",
+    // OSTIARIUS_TLS_CERTIFICATE_PEM / OSTIARIUS_TLS_PRIVATE_KEY_PEM はInfisicalから注入。
 
     // ─── 公開鍵 自己登録先 (#167) ─────────────────────────────
     // 両方そろうと起動時に Aedilis へ自己登録、 無ければ手動 provision。
@@ -90,6 +97,12 @@ const config: EnvCliConfig = {
       "OSTIARIUS_RP_ID",
       "OSTIARIUS_PWA_ORIGIN",
       "OSTIARIUS_KIOSK_TOKEN",
+      // 本番の会場 LAN は HTTPS で配信する (spec/feature/lan-https-and-lan-url.md)。
+      // 証明書は tls:issue / tls:renew が発行し、運用者が Infisical に登録する。
+      "OSTIARIUS_TLS_MODE",
+      "OSTIARIUS_LAN_HOSTNAME",
+      "OSTIARIUS_TLS_CERTIFICATE_PEM",
+      "OSTIARIUS_TLS_PRIVATE_KEY_PEM",
       // 本番は秘密鍵を inject (平文ファイルを使わない)
       "OSTIARIUS_PRIVATE_KEY",
     ],
