@@ -92,9 +92,9 @@ export function makeIdentityStaffRouter(deps: IdentityStaffDeps): Hono {
     const startOfDay = new Date(); startOfDay.setUTCHours(0, 0, 0, 0);
     if (countStaffOverridesSince(deps.db, actor, startOfDay.getTime()) >= deps.dailyOverrideLimit) return c.json({ error: 'daily_override_limit' }, 429);
     const attestation = signAttestation({ sub: body.subjectUserId, placeId: deps.facilityId, lanId: deps.lanId, nonce: randomUUID(), issuedAt: Date.now(), method: 'staff_override', assurance: 'manual' }, deps.privateKey);
-    await deliverAttestation(deps.db, deps.aedilisBaseUrl, deps.aedilisGatewayToken, attestation);
+    const delivered = await deliverAttestation(deps.db, deps.aedilisBaseUrl, deps.aedilisGatewayToken, attestation);
     recordFaceEvent(deps.db, { kind: 'staff_override', outcome: 'issued', method: 'staff_override', subjectUser: body.subjectUserId, actorUser: actor, reason: body.reasonCode });
-    return c.json({ ok: true, method: 'staff_override' });
+    return c.json({ ok: true, method: 'staff_override', attendance: { status: delivered ? 'recorded' : 'pending' } });
   });
   return router;
 }

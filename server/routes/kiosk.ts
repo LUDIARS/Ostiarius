@@ -187,7 +187,7 @@ async function showFace() {
       const form = new FormData(); form.set('sessionId', sessionId); form.set('frame', frame, 'frame.jpg');
       const response = await fetch('/identity/face/frame', { method: 'POST', body: form });
       const result = await response.json();
-      if (result.state === 'issued') { status.textContent = '出席を確認しました。'; stream.getTracks().forEach((track) => track.stop()); return; }
+      if (result.state === 'issued') { status.textContent = result.attendance?.status === 'recorded' ? '出席を記録しました。' : '本人確認済みですが、出席の送信は未確認です。職員に確認してください。'; stream.getTracks().forEach((track) => track.stop()); return; }
       if (result.state === 'fallback') { status.textContent = 'パスキーまたは職員にお知らせください。'; stream.getTracks().forEach((track) => track.stop()); return; }
       if (result.challenge) status.textContent = { blink: '一度まばたきをしてください。', turn_left: '左を向いて戻してください。', turn_right: '右を向いて戻してください。', nod: 'うなずいてください。' }[result.challenge.kind];
       else if (result.hint) status.textContent = 'もう一度、明るい場所で正面を向いてください。';

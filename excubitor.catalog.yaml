@@ -39,6 +39,8 @@ services:
     autostart: false
     env:
       OSTIARIUS_PORT: "17590"
+      # Ae public origin is owned by Aedilis/excubitor.catalog.yaml; no local Ae dependency.
+      AEDILIS_BASE_URL: https://ae.ai-run-do.com
     # CERNERE_SERVICE_TOKEN は required_env に置かない。 Cernere の project token は TTL 60 分で、
     # 静的に置くと 1 時間で失効する。 起動ごとに注入される CERNERE_PROJECT_CLIENT_ID /
     # CERNERE_PROJECT_CLIENT_SECRET (下の cernere_launch_credentials 由来) から都度取り直す。

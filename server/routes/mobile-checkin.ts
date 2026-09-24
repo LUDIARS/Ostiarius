@@ -9,6 +9,7 @@
 // インライン <style>/<script> のみの素の HTML。
 
 import { Hono } from 'hono';
+import type { AttendanceSender } from '../attendance-delivery.ts';
 
 import { generateWifiQrPng, loginAndAttest, tokenAndAttest, type MobileCheckinDeps } from '../mobile-checkin.ts';
 
@@ -22,6 +23,7 @@ export interface MobileCheckinRouteDeps {
   /** password は低保証の互換経路なので、明示的に有効化した場合だけ mount する。 */
   passwordCheckinEnabled: boolean;
   loginDeps: MobileCheckinDeps;
+  sendAttendance?: AttendanceSender;
 }
 
 function escapeHtml(s: string): string {
@@ -37,7 +39,6 @@ function renderPage(deps: MobileCheckinRouteDeps): string {
   const hasWifi = Boolean(deps.wifiSsid);
   const hasAedilis = Boolean(deps.aedilisBaseUrl);
   const hasPasswordCheckin = hasAedilis && deps.passwordCheckinEnabled;
-  const aedilisBaseUrlJson = JSON.stringify(deps.aedilisBaseUrl);
 
   const wifiSection = hasWifi
     ? `
@@ -77,7 +78,6 @@ function renderPage(deps: MobileCheckinRouteDeps): string {
   const script = hasPasswordCheckin
     ? `
     <script>
-      const AEDILIS_BASE_URL = ${aedilisBaseUrlJson};
       const form = document.getElementById('checkin-form');
       const resultEl = document.getElementById('result');
       const submitBtn = document.getElementById('submit-btn');
@@ -110,19 +110,9 @@ function renderPage(deps: MobileCheckinRouteDeps): string {
             return;
           }
 
-          resultEl.textContent = 'チェックイン中…';
-          const verifyRes = await fetch(AEDILIS_BASE_URL + '/api/checkin/verify', {
-            method: 'POST',
-            headers: {
-              'content-type': 'application/json',
-              authorization: 'Bearer ' + loginBody.accessToken,
-            },
-            body: JSON.stringify({ attestation: loginBody.attestation }),
-          });
-          const verifyBody = await verifyRes.json();
-          if (!verifyRes.ok || verifyBody.error) {
+          if (loginBody.attendance?.status !== 'recorded') {
             resultEl.className = 'error';
-            resultEl.textContent = 'チェックインに失敗しました: ' + (verifyBody.error || verifyRes.status);
+            resultEl.textContent = '出席記録を確認できませんでした。管理者に確認してください。';
             return;
           }
 
@@ -198,6 +188,10 @@ export function makeMobileCheckinRouter(deps: MobileCheckinRouteDeps): Hono {
       if ('error' in result) {
         return c.json({ error: result.error }, 401);
       }
+      if (deps.sendAttendance) {
+        const attendance = await deps.sendAttendance(result.attestation);
+        return c.json({ profile: result.profile, attendance }, attendance.status === 'recorded' ? 200 : 502);
+      }
       return c.json(result);
     });
   }
@@ -222,6 +216,10 @@ export function makeMobileCheckinRouter(deps: MobileCheckinRouteDeps): Hono {
       }
       // PWA は既に token を保持している。Bearer token を反射してログやブラウザの
       // 開発者ツールに余分に残す必要はない。
+      if (deps.sendAttendance) {
+        const attendance = await deps.sendAttendance(result.attestation);
+        return c.json({ profile: result.profile, attendance }, attendance.status === 'recorded' ? 200 : 502);
+      }
       return c.json({ attestation: result.attestation, profile: result.profile });
     });
   }

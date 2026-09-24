@@ -28,6 +28,7 @@ import { ChallengeStore } from './challenge-store.ts';
 import { IdentitySessionStore } from './identity-session-store.ts';
 import { KioskAuthorization } from './kiosk-authorization.ts';
 import { makeCheckinRouter } from './routes/checkin.ts';
+import { attendanceSender } from './attendance-delivery.ts';
 import { makeMobileCheckinRouter } from './routes/mobile-checkin.ts';
 import { makeIdentityRouter } from './routes/identity.ts';
 import { makeKioskRouter } from './routes/kiosk.ts';
@@ -168,6 +169,7 @@ app.route(
     pwaOrigin: config.pwaOrigin,
     privateKey: keyPair.privateKey,
     publicKeyPem: keyPair.publicKeyPem,
+    sendAttendance: attendanceSender(config.aedilisBaseUrl, config.aedilisGatewayToken),
   }),
 );
 
@@ -175,6 +177,7 @@ app.route('/', makeIdentityRouter({
   db, challenges, lanId: config.lanId, facilityId: config.facilityId, rpId: config.rpId,
   pwaOrigin: config.pwaOrigin, privateKey: keyPair.privateKey, cernereFrontendUrl: config.cernereFrontendUrl,
   kioskAuthorization, sessions: identitySessions,
+  sendAttendance: attendanceSender(config.aedilisBaseUrl, config.aedilisGatewayToken),
 }));
 app.route('/', makeKioskRouter({
   authorization: kioskAuthorization,
@@ -210,6 +213,7 @@ app.route(
     wifiSsid: config.wifiSsid,
     wifiPassword: config.wifiPassword,
     aedilisBaseUrl: config.aedilisBaseUrl,
+    sendAttendance: attendanceSender(config.aedilisBaseUrl, config.aedilisGatewayToken),
     sessionCheckinEnabled: config.legacyMethods.includes('session'),
     passwordCheckinEnabled: config.legacyMethods.includes('password'),
     loginDeps: {

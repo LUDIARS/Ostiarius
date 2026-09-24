@@ -16,6 +16,7 @@ import {
 } from './db.ts';
 import { ChallengeStore } from './challenge-store.ts';
 import { signAttestation } from './attestation.ts';
+import type { AttendanceSender } from './attendance-delivery.ts';
 
 export interface PasskeyCheckinDeps {
   db: Database.Database;
@@ -25,6 +26,7 @@ export interface PasskeyCheckinDeps {
   rpId: string;
   pwaOrigin: string;
   privateKey: KeyObject;
+  sendAttendance?: AttendanceSender;
 }
 
 function parseTransports(json: string): AuthenticatorTransportFuture[] | undefined {
@@ -162,9 +164,11 @@ export class PasskeyCheckinService {
       subjectUser: credential.user_id,
       sessionId,
     });
+    const attendance = await this.deps.sendAttendance?.(attestation);
+    if (attendance?.status === 'failed') return c.json({ ok: false, error: '出席記録を確認できませんでした。管理者に確認してください。', attendance }, 502);
     if (sessionId) this.onIssued?.(sessionId);
     this.onVerified?.(credential.user_id);
-    return c.json({ ok: true, attestation, method: 'passkey', assurance: 'medium' });
+    return c.json({ ok: true, attestation, attendance, method: 'passkey', assurance: 'medium' });
   }
 
   private takeSessionId(challenge: string): string | undefined {
