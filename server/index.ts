@@ -29,6 +29,7 @@ import { IdentitySessionStore } from './identity-session-store.ts';
 import { KioskAuthorization } from './kiosk-authorization.ts';
 import { makeCheckinRouter } from './routes/checkin.ts';
 import { attendanceSender } from './attendance-delivery.ts';
+import { makeCocoiruCheckinRouter } from './routes/cocoiru-checkin.ts';
 import { makeMobileCheckinRouter } from './routes/mobile-checkin.ts';
 import { makeIdentityRouter } from './routes/identity.ts';
 import { makeKioskRouter } from './routes/kiosk.ts';
@@ -54,6 +55,12 @@ import { makeIdentityReviewRouter } from './routes/identity-review.ts';
 import { createServiceTokenProvider, staticServiceTokenProvider, type ServiceTokenProvider } from './cernere-service-token.ts';
 
 const config = loadConfig();
+// Explicit venue-interface enrollment keeps this new flow separate from legacy session check-in.
+const cocoiruInterface = process.env.OSTIARIUS_COCOIRU_LAN_INTERFACE?.trim();
+if (cocoiruInterface && !config.tls.enabled) {
+  throw new Error('Cocoiru attendance requires OSTIARIUS_TLS_MODE=required and a venue certificate');
+}
+
 const db = openDb(config.dbPath);
 const identitySessions = new IdentitySessionStore();
 const kioskAuthorization = new KioskAuthorization(config.kioskToken);
@@ -227,6 +234,12 @@ app.route(
     },
   }),
 );
+
+if (cocoiruInterface) app.route('/', makeCocoiruCheckinRouter({
+  interfaceName: cocoiruInterface,
+  login: { cernereBaseUrl: config.cernereBaseUrl, facilityId: config.facilityId,
+    lanId: config.lanId, challenges, privateKey: keyPair.privateKey, vantanUserClient: null, db },
+}));
 
 app.notFound((c) => c.json({ error: 'not_found' }, 404));
 
