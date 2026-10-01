@@ -14,7 +14,7 @@ Ostiarius の役割を「会場 LAN 上の出席 API ゲートウェイ」から
 - 人手経路: **職員 override** (職員本人のパスキー + 理由必須)
 - 出力: 従来通り Ed25519 attestation (Aedilis 互換) に `method` / `assurance` を追加
 
-> **2026-10-01 (Draft)**: 同じ確認を Cernere の MFA 要素「現地確認 (onsite)」としても使う設計を
+> **2026-10-01**: 同じ確認を Cernere の MFA 要素「現地確認 (onsite)」としても使う設計 (判断点は決定済み) を
 > [onsite-mfa-factor.md](onsite-mfa-factor.md) に置いた。本文書の所在確認 (出席) とは attestation の
 > `purpose` で用途を分ける。
 
