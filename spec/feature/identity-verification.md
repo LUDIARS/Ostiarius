@@ -17,6 +17,8 @@ Ostiarius の役割を「会場 LAN 上の出席 API ゲートウェイ」から
 > **2026-10-01**: 同じ確認を Cernere の MFA 要素「現地確認 (onsite)」としても使う設計 (判断点は決定済み) を
 > [onsite-mfa-factor.md](onsite-mfa-factor.md) に置いた。本文書の所在確認 (出席) とは attestation の
 > `purpose` で用途を分ける。
+> スマホの GPS チェックインに使う位置の宣言 (`purpose: "location"`) は
+> [gps-location-statement.md](gps-location-statement.md) に置いた。
 
 関連: [face-verification.md](face-verification.md) / [face-enrollment.md](face-enrollment.md) /
 [passkey-fallback.md](passkey-fallback.md) / [../plan/biometric-data-policy.md](../plan/biometric-data-policy.md) /

@@ -59,6 +59,11 @@ services:
     # secret と LAN 固有の設定は Excubitor の Vault (WebUI「環境変数」) の ostiarius 紐付けから注入する。
     # 任意設定 (OSTIARIUS_TLS_* / OSTIARIUS_FACE_* / AEDILIS_GATEWAY_TOKEN / OSTIARIUS_STAFF_ROLES 等) は
     # 使うときに Vault へ登録して紐付けに足す。TLS_MODE は未設定時 off。証明書 3 値と同時に required を登録して切り替える。
+    # GPS チェックインの位置の宣言 (spec/feature/gps-location-statement.md) も Vault で与える:
+    #   OSTIARIUS_FACILITY_LAT      会場の緯度 (10 進度、-90〜90)
+    #   OSTIARIUS_FACILITY_LON      会場の経度 (10 進度、-180〜180)
+    #   OSTIARIUS_FACILITY_RADIUS_M 会場とみなす半径 (正の整数、m)
+    # 3 値が揃わなければ /api/health と GET /api/location に宣言を出さない (その会場は GPS チェックイン不可)。
     requires_secret:
       - service: cernere
         keys: [EXCUBITOR_CERNERE_CLIENT_ID, EXCUBITOR_CERNERE_CLIENT_SECRET]

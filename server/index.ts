@@ -59,6 +59,8 @@ import { OnsiteMfaSessionStore } from './onsite-mfa/session-store.ts';
 import { onsiteMfaSubmitter } from './onsite-mfa/cernere-submit.ts';
 import { makeOnsiteMfaRouter, ONSITE_MFA_API_PREFIX } from './routes/onsite-mfa.ts';
 import { makeOnsiteMfaKioskRouter } from './routes/onsite-mfa-kiosk.ts';
+import { createLocationStatementIssuer, locationStatementField } from './location-statement.ts';
+import { makeLocationRouter } from './routes/location.ts';
 
 const config = loadConfig();
 // Explicit venue-interface enrollment keeps this new flow separate from legacy session check-in.
@@ -75,6 +77,13 @@ const keyPair = loadOrCreateKeyPair({
   keyPath: config.keyPath,
 });
 const challenges = new ChallengeStore(config.challengeTtlMs);
+// 位置の宣言 (GPS チェックイン用)。要求ごとに gateway 鍵で新しく署名する。
+const issueLocationStatement = createLocationStatementIssuer({
+  lanId: config.lanId,
+  facilityId: config.facilityId,
+  location: config.facilityLocation,
+  privateKey: keyPair.privateKey,
+});
 // 顔データの封緘鍵はこのホストで生成・保管する (env / Infisical からは配らない)。
 const faceKeys = loadLocalFaceKeys(config.dataDir);
 const isLan = createLanGuard();
@@ -175,8 +184,12 @@ app.get('/api/health', async (c) => {
     lanTransport: config.tls.enabled ? 'https' : 'http',
     // この一覧の手段は secure context (HTTPS か localhost) の画面でしか出さない。
     secureContextMethods: SECURE_CONTEXT_METHODS,
+    // 位置の宣言 (GLAB が probe で受け取り GPS チェックインへ中継する)。未設定の会場は省略。
+    ...locationStatementField(issueLocationStatement()),
   });
 });
+
+app.route('/', makeLocationRouter(issueLocationStatement));
 
 app.route(
   '/',
@@ -307,6 +320,7 @@ function onListening(info: AddressInfo): void {
   console.log(`[ostiarius] rpId=${config.rpId} pwaOrigin=${config.pwaOrigin}`);
   console.log(`[ostiarius] cernere=${config.cernereBaseUrl}`);
   console.log(`[ostiarius] key source=${keyPair.source}`);
+  console.log(`[ostiarius] location statement=${config.facilityLocation ? 'enabled' : 'disabled (OSTIARIUS_FACILITY_LAT/LON/RADIUS_M 未設定)'}`);
   console.log(`[ostiarius] credentials cached: ${countCredentials(db)}`);
   console.log(
     `[ostiarius] mobile-checkin: wifiQr=${config.wifiSsid ? 'on' : 'off'} vantanUserEnrichment=${vantanUserClient ? 'on' : 'off'} aedilis=${config.aedilisBaseUrl || '(未設定)'}`,

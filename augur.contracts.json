@@ -191,6 +191,24 @@
       "module": "contracts/kiosk-token-exchange-decision.contract.ts",
       "mode": "observe",
       "sample": 1
+    },
+    {
+      "id": "C-22",
+      "criterion": "C-22 signLocationStatement(payload, privateKey): 位置の宣言を {lanId, facilityId, lat, lon, radiusM, issuedAt, purpose} の固定キー順・purpose=location で gateway 鍵により署名する",
+      "symbol": "signLocationStatement",
+      "file": "server/location-statement.ts",
+      "module": "contracts/sign-location-statement.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-23",
+      "criterion": "C-23 resolveFacilityLocation(env): OSTIARIUS_FACILITY_LAT / LON / RADIUS_M の 3 値が揃って範囲内のときだけ位置を返し、欠けるか不正なら null にする",
+      "symbol": "resolveFacilityLocation",
+      "file": "server/facility-location.ts",
+      "module": "contracts/resolve-facility-location.contract.ts",
+      "mode": "observe",
+      "sample": 1
     }
   ]
 }

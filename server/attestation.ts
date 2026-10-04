@@ -8,6 +8,8 @@
 // payload のフィールド・順序・エンコードは固定:
 //   { sub, placeId, lanId, nonce, issuedAt, method, assurance, purpose }
 // purpose は末尾追加 (spec/feature/onsite-mfa-factor.md §3)。 欠落した旧形式は attendance。
+// purpose "location" は位置の宣言 (server/location-statement.ts) 専用で、payload の形が違う
+// (spec/feature/gps-location-statement.md)。受け手は出席・MFA の attestation として受理しない。
 
 import { sign as cryptoSign, verify as cryptoVerify, type KeyObject } from 'node:crypto';
 import { contract } from '../contract-runtime.ts'; /* augur-inject:import:7d9d6302 */
@@ -30,7 +32,7 @@ export interface AttestationPayload {
 
 export type AttestationMethod = 'face' | 'face_passive' | 'passkey' | 'staff_override' | 'session' | 'password';
 export type AttestationAssurance = 'high' | 'medium' | 'manual' | 'low';
-export type AttestationPurpose = 'attendance' | 'mfa';
+export type AttestationPurpose = 'attendance' | 'mfa' | 'location';
 
 /** 新しく署名する payload。発行側は method / assurance / purpose を必ず明示する。 */
 export type SignableAttestation = Required<AttestationPayload>;
@@ -66,10 +68,15 @@ function canonicalPayload(payload: SignableAttestation): SignableAttestation {
   };
 }
 
-export function signAttestation(payload: SignableAttestation, privateKey: KeyObject): string {
-  const body = b64urlEncode(Buffer.from(JSON.stringify(canonicalPayload(payload))));
+/** 組み直し済みの payload を `base64url(JSON) + "." + base64url(Ed25519 署名)` にする。 */
+export function signCompactPayload(payload: object, privateKey: KeyObject): string {
+  const body = b64urlEncode(Buffer.from(JSON.stringify(payload)));
   const sig = cryptoSign(null, Buffer.from(body), privateKey);
   return `${body}.${b64urlEncode(sig)}`;
+}
+
+export function signAttestation(payload: SignableAttestation, privateKey: KeyObject): string {
+  return signCompactPayload(canonicalPayload(payload), privateKey);
 }
 // @ts-expect-error augur-inject
 signAttestation = contract(signAttestation, { ...augurContract_4ac07e6b, contractId: 'C-10', mode: 'observe', sample: 1, where: 'server/attestation.ts:64', rule: 'contract-wrap', id: '4ac07e6b' }); /* augur-inject:contract-wrap:4ac07e6b */
