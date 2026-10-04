@@ -11,15 +11,16 @@
 //
 // アドレスを取れない実行環境 (node-server 以外) では **通さない** (fail-closed)。
 // テストは resolver を差し替えて LAN 内/外を作る。
+//
+// HTTP 運用 (TLS 未導入) では、LAN 内でも平文の別端末へ写真・テンプレートを流さない。
+// その経路には createSecureLanGuard (「TLS か loopback」を足した判定) を使う。
 
-import { getConnInfo } from '@hono/node-server/conninfo';
 import type { Context } from 'hono';
 import { isLoopbackAddress } from '../loopback.ts';
+import { hasForwardedHeaders as hasForwardedRequestHeaders } from '../http-security/forwarded-headers.ts';
+import { isSecureTransport, remoteAddressOf, type RemoteAddressResolver } from '../http-security/transport.ts';
 
-/** 施設外からの中継を示すヘッダ。1 つでもあれば LAN 内と見なさない。 */
-const FORWARDED_HEADERS = ['x-forwarded-for', 'forwarded', 'cf-connecting-ip', 'cf-ray', 'x-real-ip'];
-
-export type RemoteAddressResolver = (c: Context) => string | null;
+export type { RemoteAddressResolver };
 
 function normalize(address: string): string {
   const trimmed = address.trim().toLowerCase().replace(/^\[/, '').replace(/\]$/, '');
@@ -46,20 +47,18 @@ export function isPrivateAddress(address: string | null | undefined): boolean {
   return /^f[cd][0-9a-f]{2}:/.test(candidate) || /^fe[89ab][0-9a-f]:/.test(candidate);
 }
 
-function defaultResolver(c: Context): string | null {
-  try {
-    return getConnInfo(c).remote.address ?? null;
-  } catch {
-    return null;
-  }
-}
-
-/** 中継ヘッダが付いていれば施設外扱い。 */
+/** 中継ヘッダが付いていれば施設外扱い (一覧は http-security/forwarded-headers.ts)。 */
 export function hasForwardedHeaders(c: Context): boolean {
-  return FORWARDED_HEADERS.some((header) => Boolean(c.req.header(header)));
+  return hasForwardedRequestHeaders(c.req.raw.headers);
 }
 
 /** LAN 内判定。resolver を差し替えられるのはテストと将来の別実装のため。 */
-export function createLanGuard(resolve: RemoteAddressResolver = defaultResolver): (c: Context) => boolean {
+export function createLanGuard(resolve: RemoteAddressResolver = remoteAddressOf): (c: Context) => boolean {
   return (c) => !hasForwardedHeaders(c) && isPrivateAddress(resolve(c));
+}
+
+/** 写真・テンプレート・登録系の判定: LAN 内 かつ 転送路が TLS か loopback。 */
+export function createSecureLanGuard(resolve: RemoteAddressResolver = remoteAddressOf): (c: Context) => boolean {
+  const isLan = createLanGuard(resolve);
+  return (c) => isLan(c) && isSecureTransport(c, resolve);
 }

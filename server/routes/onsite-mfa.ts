@@ -1,6 +1,6 @@
 // 現地確認 MFA の利用者端末向け API (契約 E)。施設 LAN 経路からだけ受ける。
 //
-//   POST /api/mfa/onsite/sessions        { nonce } -> 202 { sessionId, expiresAt } / 409 { error: "kiosk_busy" }
+//   POST /api/mfa/onsite/sessions        { nonce } -> 202 { sessionId, expiresAt } / 409 { error: "kiosk_busy" | "nonce_reused" }
 //   GET  /api/mfa/onsite/sessions/:id    -> { state, error? }
 //
 // Cernere のログイン画面 (別 origin) から fetch されるので、CORS は Cernere の公開 origin

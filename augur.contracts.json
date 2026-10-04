@@ -104,7 +104,7 @@
     },
     {
       "id": "C-12",
-      "criterion": "C-12 openOnsiteMfaSession(store, nonce): 有効な MFA セッションが既にあれば kiosk_busy を返し、無ければ期限 5 分の確認待ちセッションを 1 件だけ開く",
+      "criterion": "C-12 openOnsiteMfaSession(store, nonce): 有効な MFA セッションが既にあれば kiosk_busy、同じ nonce のセッションが保持期間内に残っていれば nonce_reused を返し、どちらでもなければ期限 5 分の確認待ちセッションを 1 件だけ開く",
       "symbol": "openOnsiteMfaSession",
       "file": "server/onsite-mfa/session-store.ts",
       "module": "contracts/open-onsite-mfa-session.contract.ts",
@@ -126,6 +126,69 @@
       "symbol": "completeOnsiteMfa",
       "file": "server/onsite-mfa/completion.ts",
       "module": "contracts/complete-onsite-mfa.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-15",
+      "criterion": "C-15 classifyTransport(facts): TLS 接続は tls、中継ヘッダの無い loopback だけを loopback とし、中継ヘッダ付きや LAN の平文接続は insecure に分類する",
+      "symbol": "classifyTransport",
+      "file": "server/http-security/transport.ts",
+      "module": "contracts/classify-transport.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-16",
+      "criterion": "C-16 isAllowedHost(host, allowed): Host ヘッダが許可リストの名前 (LAN IPv4 / localhost / 127.0.0.1 / [::1] / OSTIARIUS_LAN_HOSTNAME) で、port が省略か待受 port のときだけ通す",
+      "symbol": "isAllowedHost",
+      "file": "server/http-security/host-allowlist.ts",
+      "module": "contracts/is-allowed-host.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-17",
+      "criterion": "C-17 resolveAllowedOrigin(origin, allowlist): 許可リストに完全一致した Origin だけを返し、ワイルドカードや許可外は null にする",
+      "symbol": "resolveAllowedOrigin",
+      "file": "server/http-security/origin-allowlist.ts",
+      "module": "contracts/resolve-allowed-origin.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-18",
+      "criterion": "C-18 hitRateLimit(buckets, key, now, policy): IP ごとの窓内要求数が上限を超えたら拒否し、1 秒以上の再試行待ちを返す",
+      "symbol": "hitRateLimit",
+      "file": "server/http-security/rate-limit.ts",
+      "module": "contracts/hit-rate-limit.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-19",
+      "criterion": "C-19 consumeRequestNonce(store, nonce): サーバ発行の nonce を 1 回だけ受理し、欠落は missing、未発行・期限切れ・再利用は rejected にする",
+      "symbol": "consumeRequestNonce",
+      "file": "server/http-security/request-nonce.ts",
+      "module": "contracts/consume-request-nonce.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-20",
+      "criterion": "C-20 buildSecurityHeaders(scriptNonce): CSP (default-src self、inline script は nonce のみ)・X-Frame-Options DENY・nosniff・Referrer-Policy no-referrer を返す",
+      "symbol": "buildSecurityHeaders",
+      "file": "server/http-security/security-headers.ts",
+      "module": "contracts/build-security-headers.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-21",
+      "criterion": "C-21 kioskTokenExchangeDecision(transport): kiosk 共有 token の cookie 交換を loopback と TLS だけに許し、平文 LAN は secure_transport_required で断る",
+      "symbol": "kioskTokenExchangeDecision",
+      "file": "server/kiosk-authorization.ts",
+      "module": "contracts/kiosk-token-exchange-decision.contract.ts",
       "mode": "observe",
       "sample": 1
     }

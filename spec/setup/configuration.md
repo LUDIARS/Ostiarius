@@ -26,7 +26,7 @@ env-cli (Infisical) 設定は `env-cli.config.ts`。
 | `OSTIARIUS_RP_ID` | WebAuthn rpID (Cernere と同 eTLD+1) | — | **必須** |
 | `OSTIARIUS_PWA_ORIGIN` | CORS 許可 + expectedOrigin の PWA origin | — | **必須** |
 | `OSTIARIUS_TLS_MODE` | `off` / `required` のみ。本番 LAN は `required` | `off` | |
-| `OSTIARIUS_LAN_HOSTNAME` | LAN DNS で会場端末のプライベート IP に解決する証明書ホスト名 | `''` | `required` 時 必須 |
+| `OSTIARIUS_LAN_HOSTNAME` | LAN DNS で会場端末のプライベート IP に解決する証明書ホスト名。HTTP 運用でも設定すれば Host 許可リストに入る | `''` | `required` 時 必須 |
 | `OSTIARIUS_TLS_CERTIFICATE_PEM` | 公開 CA の証明書チェーン PEM | `''` | `required` 時 必須 |
 | `OSTIARIUS_TLS_PRIVATE_KEY_PEM` | 証明書の秘密鍵 PEM (**secret**) | `''` | `required` 時 必須 |
 | `OSTIARIUS_PRIVATE_KEY` | Ed25519 秘密鍵 PKCS#8 PEM。本番は inject (**secret**) | `''` (空→file 経路) | 本番 必須 |

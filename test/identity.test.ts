@@ -14,6 +14,8 @@ const KIOSK_TOKEN = 'test-kiosk-token';
 const KIOSK_HEADERS = { 'x-ostiarius-kiosk': KIOSK_TOKEN };
 const RP_ID = 'localhost';
 const PWA_ORIGIN = 'http://localhost:5173';
+// LAN の別端末からの kiosk token は TLS 接続のときだけ受ける。app.request() は URL の scheme を TLS の有無として読む。
+const TLS = 'https://ostiarius.test';
 
 function app() {
   const keyPair = generateKeyPairSync('ed25519');
@@ -38,7 +40,7 @@ function app() {
 }
 
 async function createSession(router: Hono): Promise<{ sessionId: string; expiresAt: number }> {
-  const response = await router.request('/identity/session', {
+  const response = await router.request(`${TLS}/identity/session`, {
     method: 'POST',
     headers: { ...KIOSK_HEADERS, 'content-type': 'application/json' },
     body: JSON.stringify({ purpose: 'verify' }),
@@ -66,7 +68,7 @@ describe('/identity P1 kiosk support', () => {
     const body = await createSession(router);
     expect(body.expiresAt).toBeGreaterThan(Date.now());
 
-    const get = await router.request(`/identity/session/${body.sessionId}`, { headers: KIOSK_HEADERS });
+    const get = await router.request(`${TLS}/identity/session/${body.sessionId}`, { headers: KIOSK_HEADERS });
     expect(await get.json()).toEqual({ state: 'idle' });
   });
 
@@ -97,7 +99,7 @@ describe('/identity P1 kiosk support', () => {
     });
     expect(finish.status).toBe(200);
 
-    const state = await router.request(`/identity/session/${session.sessionId}`, { headers: KIOSK_HEADERS });
+    const state = await router.request(`${TLS}/identity/session/${session.sessionId}`, { headers: KIOSK_HEADERS });
     expect(await state.json()).toEqual({ state: 'issued', method: 'passkey' });
     const event = db.prepare(
       'SELECT method, outcome, subject_user, session_id FROM verification_events',
@@ -122,7 +124,7 @@ describe('/identity P1 kiosk support', () => {
   });
 
   it('returns a local Cernere registration QR without making a Cernere request', async () => {
-    const response = await app().router.request('/identity/passkey/register-hint', {
+    const response = await app().router.request(`${TLS}/identity/passkey/register-hint`, {
       headers: KIOSK_HEADERS,
     });
     const body = await response.json() as { registerUrl: string; qrSvg: string };
@@ -132,12 +134,16 @@ describe('/identity P1 kiosk support', () => {
 
   it('exchanges the kiosk header for an HttpOnly cookie without embedding the token in HTML', async () => {
     const { router } = app();
-    const bootstrap = await router.request('http://ostiarius.test/kiosk', { headers: KIOSK_HEADERS });
+    const bootstrap = await router.request(`${TLS}/kiosk`, { headers: KIOSK_HEADERS });
     expect(bootstrap.status).toBe(200);
     const cookie = bootstrap.headers.get('set-cookie');
     expect(cookie).toContain('HttpOnly');
+    expect(cookie).toContain('SameSite=Strict');
+    expect(cookie).toContain('Path=/kiosk');
+    expect(cookie).toContain('Secure');
+    expect(cookie).toContain('Max-Age=3600');
 
-    const page = await router.request('http://ostiarius.test/kiosk', {
+    const page = await router.request(`${TLS}/kiosk`, {
       headers: { cookie: cookie?.split(';', 1)[0] ?? '' },
     });
     expect(page.status).toBe(200);
@@ -145,6 +151,33 @@ describe('/identity P1 kiosk support', () => {
     expect(html).not.toContain(KIOSK_TOKEN);
     expect(html).not.toContain('?token=');
     expect(page.headers.get('cache-control')).toBe('no-store');
+  });
+
+  it('refuses to exchange the kiosk token over plain HTTP from another LAN device', async () => {
+    const { router } = app();
+    const response = await router.request('http://ostiarius.test/kiosk', { headers: KIOSK_HEADERS });
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ error: 'secure_transport_required' });
+    expect(response.headers.get('set-cookie')).toBeNull();
+  });
+
+  it('does not accept the kiosk token header itself over plain HTTP', async () => {
+    const response = await app().router.request('http://ostiarius.test/identity/passkey/register-hint', { headers: KIOSK_HEADERS });
+    expect(response.status).toBe(401);
+  });
+
+  it('runs the kiosk page script under a nonce CSP and hides secure-context-only methods when needed', async () => {
+    const response = await app().router.request(`${TLS}/kiosk`, { headers: KIOSK_HEADERS });
+    const html = await response.text();
+    const csp = response.headers.get('content-security-policy') ?? '';
+    const nonce = /<script nonce="([^"]+)">/.exec(html)?.[1];
+    expect(nonce).toBeTruthy();
+    expect(csp).toContain(`'nonce-${nonce}'`);
+    expect(csp.split(';').find((part) => part.trim().startsWith('script-src'))).not.toContain('unsafe-inline');
+    expect(html).toContain('window.isSecureContext');
+    expect(html).toContain('<button id="face" data-requires-secure-context>');
+    expect(html).toContain("fetch('/kiosk/identity/session'");
+    expect(html).toContain("'x-ostiarius-nonce': await requestNonce()");
   });
 
   it('does not accept the shared kiosk credential in a query string', async () => {
@@ -155,7 +188,7 @@ describe('/identity P1 kiosk support', () => {
   });
 
   it('provides the staff-passkey enrollment flow without exposing the kiosk credential', async () => {
-    const response = await app().router.request('http://ostiarius.test/kiosk', {
+    const response = await app().router.request(`${TLS}/kiosk`, {
       headers: KIOSK_HEADERS,
     });
     const html = await response.text();

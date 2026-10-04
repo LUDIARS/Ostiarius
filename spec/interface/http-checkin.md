@@ -7,8 +7,16 @@ listen: `0.0.0.0:{OSTIARIUS_PORT}` (既定 17590)。実装: `server/index.ts`、
 
 ## CORS / 認証境界
 
-- CORS は `OSTIARIUS_PWA_ORIGIN` のみ許可。`allowMethods: ['GET','POST','OPTIONS']`、
-  `allowHeaders: ['content-type','authorization']` (`server/index.ts`)。
+- CORS は `OSTIARIUS_PWA_ORIGIN` のみ許可 (現地確認 MFA の `/api/mfa/onsite/*` は Cernere の公開 origin のみ)。
+  `allowMethods: ['GET','POST','OPTIONS']`、`allowHeaders: ['content-type','authorization','x-ostiarius-nonce']`。
+  許可外 Origin は `403 { error: 'origin_not_allowed' }` (`server/http-security/origin-allowlist.ts`)。
+- HTTP 運用時のセキュリティ要件 (Host 許可リスト・機微経路の TLS/loopback 限定・一回限り nonce・
+  レート制限・防御ヘッダ) は [feature/lan-https-and-lan-url.md](../feature/lan-https-and-lan-url.md)
+  §HTTP 運用時のセキュリティ要件 が正本。共通の拒否応答:
+  - `421 { error: 'misdirected_host' }` … Host が許可リスト外
+  - `403 { error: 'lan_only' }` / `403 { error: 'secure_transport_required' }` … 機微経路を LAN 外 / 平文 LAN から
+  - `400 { error: 'nonce_required' }` / `409 { error: 'nonce_rejected' }` … 要求 nonce の欠落 / 無効
+  - `429 { error: 'rate_limited' }` + `Retry-After` … 開始・照合系の上限超過
 - 通常の passkey 経路はアプリ層の Bearer を要求せず、WebAuthn assertion 自体が
   認証を担う。低保証の互換経路だけは Cernere Bearer を検証する。
   到達制御は「会場 LAN にしか配置しない」というデプロイ前提で担保する。
@@ -52,6 +60,8 @@ assertion を検証し、OK なら attestation を署名して返す。
 
 ## `POST /checkin/session` (互換経路、既定無効)
 
+> TLS か loopback のときだけ受け付ける (平文 LAN は `403 secure_transport_required`)。要求 nonce 必須。
+
 `OSTIARIUS_LEGACY_METHODS` に `session` を明示した施設だけで公開する低保証の互換経路。
 有効な Cernere access token を `Authorization: Bearer {token}` または
 `{ accessToken }` で受け、Cernere の `/api/auth/me` で本人を確定して attestation を返す。
@@ -80,12 +90,22 @@ assertion を検証し、OK なら attestation を署名して返す。
 
 詳細: [feature/mobile-checkin-fallback.md](../feature/mobile-checkin-fallback.md)。
 
+## `POST /api/lan/nonce`
+
+- 状態を変える開始系 (`POST /identity/session`、`/kiosk/identity/session`、`/checkin/mobile-login`、
+  `/checkin/session`) に付ける一回限りの nonce を発行する。
+- res 200 (`Cache-Control: no-store`): `{ nonce, expiresAt }` (有効 3 分)。
+- 使い方: 次の要求に `x-ostiarius-nonce: <nonce>` を付ける。サーバは受け取った時点で消費する。
+
 ## `GET /api/health`
 
 - res 200: `{ ok: true, service: 'ostiarius', version, lanUrl, lanId, facilityId, credentials, methods }`
   (顔認証の稼働状況 `faceTemplates` / `facePending` / `sidecar` / `outbox` も併せて返す)
   - `credentials` = `countCredentials(db)` (キャッシュ件数)。
-  - `methods` = `['passkey', ...有効化済みの session/password]`。
+  - `methods` = `['passkey', ...有効化済みの session/password]`。session/password はパスワード / Bearer を
+    送るので **TLS 有効時だけ** 載せる (HTTP では `403 secure_transport_required` になるため)。
+  - `lanTransport` = `'http'` | `'https'` (TLS 設定)。
+  - `secureContextMethods` = `['passkey', 'camera']`。画面はこの手段を secure context のときだけ出す。
   - `version` = `npm_package_version` (無ければ `'0.1.0'`)。
   - `lanUrl` = 会場 LAN のブラウザから到達できる base URL。TLS 有効時は
     `https://{OSTIARIUS_LAN_HOSTNAME}:{port}`、無効時は現在の Wi-Fi / デフォルト経路の

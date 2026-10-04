@@ -16,6 +16,8 @@ import { makeOnsiteMfaKioskRouter } from '../server/routes/onsite-mfa-kiosk.ts';
 import { createSoftAuthenticator } from './webauthn-soft-authenticator.ts';
 
 const KIOSK_HEADERS = { 'x-ostiarius-kiosk': 'kiosk-token' };
+// kiosk token は TLS 接続のときだけ受ける (app.request() は URL の scheme を TLS の有無として読む)。
+const KIOSK_TLS = 'https://ostiarius.test';
 const CERNERE_ORIGIN = 'https://cernere.example.test';
 const CERNERE_BASE = 'https://cernere-api.example.test';
 const RP_ID = 'localhost';
@@ -87,7 +89,7 @@ async function sendFaceFrame(app: Hono, sessionId: string): Promise<Response> {
   const form = new FormData();
   form.set('identitySessionId', 'identity-1');
   form.set('frame', new File([new Uint8Array([1, 2, 3])], 'frame.jpg', { type: 'image/jpeg' }));
-  return app.request(`/kiosk/mfa/${sessionId}/face/frame`, { method: 'POST', headers: KIOSK_HEADERS, body: form });
+  return app.request(`${KIOSK_TLS}/kiosk/mfa/${sessionId}/face/frame`, { method: 'POST', headers: KIOSK_HEADERS, body: form });
 }
 
 describe('onsite MFA session API (contract E)', () => {
@@ -157,6 +159,18 @@ describe('onsite MFA session API (contract E)', () => {
     expect(foreign.headers.get('access-control-allow-origin')).toBeNull();
   });
 
+  it('rejects a replayed start request carrying an already used nonce', async () => {
+    const { app, advance } = setup();
+    const value = nonce();
+    expect((await start(app, value)).status).toBe(202);
+    // 先のセッションが期限切れで kiosk が空いていても、同じ nonce では開けない。
+    advance(TTL_MS + 1);
+    const replay = await start(app, value);
+    expect(replay.status).toBe(409);
+    expect(await replay.json()).toEqual({ error: 'nonce_reused' });
+    expect((await start(app)).status).toBe(202);
+  });
+
   it('requires kiosk authorization for the kiosk-side endpoints', async () => {
     const { app } = setup();
     expect((await app.request('/kiosk/mfa/current')).status).toBe(401);
@@ -168,7 +182,7 @@ describe('onsite MFA completion (purpose:"mfa" to Cernere)', () => {
     const { app, keyPair, cernere } = setup();
     const value = nonce();
     const opened = await (await start(app, value)).json() as { sessionId: string };
-    const current = await (await app.request('/kiosk/mfa/current', { headers: KIOSK_HEADERS })).json() as { session: Record<string, unknown> };
+    const current = await (await app.request(`${KIOSK_TLS}/kiosk/mfa/current`, { headers: KIOSK_HEADERS })).json() as { session: Record<string, unknown> };
     expect(current.session).toEqual({ sessionId: opened.sessionId, expiresAt: expect.any(Number) });
 
     const response = await sendFaceFrame(app, opened.sessionId);
@@ -221,10 +235,10 @@ describe('onsite MFA completion (purpose:"mfa" to Cernere)', () => {
     upsertCredential(db, { userId: 'user-7', credentialId: authenticator.credentialId, publicKey: authenticator.publicKeyCoseBase64, counter: 0, transports: ['internal'] });
     const opened = await (await start(app)).json() as { sessionId: string };
 
-    const begin = await app.request(`/kiosk/mfa/${opened.sessionId}/passkey/begin`, { method: 'POST', headers: KIOSK_HEADERS });
+    const begin = await app.request(`${KIOSK_TLS}/kiosk/mfa/${opened.sessionId}/passkey/begin`, { method: 'POST', headers: KIOSK_HEADERS });
     expect(begin.status).toBe(200);
     const options = await begin.json() as { challenge: string };
-    const finish = await app.request(`/kiosk/mfa/${opened.sessionId}/passkey/finish`, {
+    const finish = await app.request(`${KIOSK_TLS}/kiosk/mfa/${opened.sessionId}/passkey/finish`, {
       method: 'POST',
       headers: { ...KIOSK_HEADERS, 'content-type': 'application/json' },
       body: JSON.stringify({ response: authenticator.buildAssertion(options.challenge, PWA_ORIGIN, RP_ID) }),

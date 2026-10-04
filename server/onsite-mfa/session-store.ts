@@ -7,6 +7,8 @@
 //   待ち行列にしないのは、kiosk の前に立つ人と nonce の対応を画面上で取り違えないため。
 // - 期限は Cernere の ticket と同じ 5 分。期限切れのセッションは kiosk を塞がない。
 // - 端末から受け取るのは nonce だけ。userId や操作内容は持たない。
+// - 同じ nonce は一回限り。保持期間 (期限 + retention、既定 10 分) は Cernere の ticket 寿命
+//   (5 分) より長いので、盗聴した開始要求を再送しても nonce_reused で断れる。
 
 import { randomUUID } from 'node:crypto';
 import { contract } from '../contract-runtime.ts'; /* augur-inject:import:7bdd76bf */
@@ -74,6 +76,15 @@ export class OnsiteMfaSessionStore {
     return session;
   }
 
+  /** この nonce で開いたセッションが保持期間内に残っているか (リプレイ検出)。 */
+  hasNonce(nonce: string): boolean {
+    this.sweep();
+    for (const session of this.sessions.values()) {
+      if (session.nonce === nonce) return true;
+    }
+    return false;
+  }
+
   view(sessionId: string): OnsiteMfaView | null {
     this.sweep();
     const session = this.sessions.get(sessionId);
@@ -107,10 +118,11 @@ export class OnsiteMfaSessionStore {
   }
 }
 
-export type OpenOnsiteMfaResult = { sessionId: string; expiresAt: number } | { error: 'kiosk_busy' };
+export type OpenOnsiteMfaResult = { sessionId: string; expiresAt: number } | { error: 'kiosk_busy' | 'nonce_reused' };
 
-/** 確認待ちを 1 件だけ開く。既に有効なセッションがあれば kiosk_busy。 */
+/** 確認待ちを 1 件だけ開く。同じ nonce の再送は nonce_reused、既に有効なセッションがあれば kiosk_busy。 */
 export function openOnsiteMfaSession(store: OnsiteMfaSessionStore, nonce: string): OpenOnsiteMfaResult {
+  if (store.hasNonce(nonce)) return { error: 'nonce_reused' };
   if (store.active()) return { error: 'kiosk_busy' };
   const session = store.create(nonce);
   return { sessionId: session.sessionId, expiresAt: session.expiresAt };

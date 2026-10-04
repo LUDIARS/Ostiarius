@@ -32,7 +32,9 @@ services:
     repo: LUDIARS/Ostiarius
     runtime: node
     cwd: ${ARS_ROOT}/Ostiarius
-    command: npm run dev
+    # `npm run dev` だと Windows の launcher (npm.cmd) が breakaway spawn 後に抜けて Excubitor が
+    # プロセスを見失う。Node 本体を root にする (Aedilis と同じ node --run 方式)。
+    command: node --run dev:excubitor
     allow_hot_reload: true
     # face-sidecar は任意依存 (無くても起動し、/api/health の sidecar.ok=false で顔経路を fallback 表示)
     depends_on: [cernere]

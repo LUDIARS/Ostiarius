@@ -3,6 +3,9 @@ import { toString as qrToString } from 'qrcode';
 
 import type { IdentitySessionStore } from '../identity-session-store.ts';
 import type { KioskAuthorization } from '../kiosk-authorization.ts';
+import { buildSecurityHeaders, scriptNonce } from '../http-security/security-headers.ts';
+import { REQUEST_NONCE_HEADER, REQUEST_NONCE_PATH } from '../http-security/request-nonce.ts';
+import { secureContextScript } from '../http-security/secure-context.ts';
 import { REVIEW_PANEL_HTML, REVIEW_PANEL_SCRIPT } from './kiosk-review-panel.ts';
 import { MFA_PANEL_HTML, MFA_PANEL_SCRIPT } from './kiosk-mfa-panel.ts';
 
@@ -19,7 +22,7 @@ export function makeKioskRouter(args: {
 }): Hono {
   const router = new Hono();
   // 写真と pending テンプレートの正本がローカルになったので、審査パネルは常設。
-  const reviewButton = '<button id="review">写真の申請を審査（職員）</button>';
+  const reviewButton = '<button id="review" data-requires-secure-context>写真の申請を審査（職員）</button>';
   const reviewPanel = REVIEW_PANEL_HTML;
   const reviewScript = REVIEW_PANEL_SCRIPT;
   router.get('/kiosk/passkey-qr/:sessionId', async (c) => {
@@ -35,23 +38,30 @@ export function makeKioskRouter(args: {
   router.get('/kiosk', (c) => {
     const hasBootstrapToken = Boolean(c.req.header('x-ostiarius-kiosk'));
     if (hasBootstrapToken) {
-      if (!args.authorization.establishBrowserSession(c)) {
+      // 共有 token → cookie の交換は loopback か TLS のときだけ (平文 LAN では token を受けない)。
+      const established = args.authorization.establishBrowserSession(c);
+      if (established === 'secure_transport_required') {
+        return c.json({ error: 'secure_transport_required' }, 403, PROTECTED_HEADERS);
+      }
+      if (established !== 'established') {
         return c.json({ error: 'kiosk_unauthorized' }, 401, PROTECTED_HEADERS);
       }
     } else if (!args.authorization.isAuthorized(c)) {
       return c.json({ error: 'kiosk_unauthorized' }, 401, PROTECTED_HEADERS);
     }
 
+    const nonce = scriptNonce(c);
     return c.html(`<!doctype html>
 <meta charset="utf-8">
 <title>本人確認 kiosk</title>
 <main>
   <h1>本人確認</h1>
+  <p data-insecure-context-guidance hidden></p>
   ${MFA_PANEL_HTML}
   <button id="passkey">パスキーで出席</button>
   <button id="register">端末を登録</button>
-  <button id="face">顔認証</button>
-  <button id="enroll">顔を登録（職員）</button>
+  <button id="face" data-requires-secure-context>顔認証</button>
+  <button id="enroll" data-requires-secure-context>顔を登録（職員）</button>
   ${reviewButton}
   <p id="status"></p>
 <div id="qr"></div>
@@ -80,7 +90,8 @@ export function makeKioskRouter(args: {
   </section>
   ${reviewPanel}
 </main>
-<script>
+<script nonce="${nonce}">
+${secureContextScript()}
 const status = document.querySelector('#status');
 const qr = document.querySelector('#qr');
 const enrollPanel = document.querySelector('#enroll-panel');
@@ -113,10 +124,16 @@ function stopPolling() {
   pollTimer = undefined;
 }
 
+async function requestNonce() {
+  const response = await fetch('${REQUEST_NONCE_PATH}', { method: 'POST' });
+  if (!response.ok) throw new Error('nonce_failed');
+  return (await response.json()).nonce;
+}
+
 async function createSession() {
-  const response = await fetch('/identity/session', {
+  const response = await fetch('/kiosk/identity/session', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', '${REQUEST_NONCE_HEADER}': await requestNonce() },
     body: JSON.stringify({ purpose: 'verify' }),
   });
   if (!response.ok) throw new Error('session_create_failed');
@@ -125,7 +142,7 @@ async function createSession() {
 
 async function pollSession() {
   try {
-    const response = await fetch('/identity/session/' + encodeURIComponent(sessionId));
+    const response = await fetch('/kiosk/identity/session/' + encodeURIComponent(sessionId));
     if (!response.ok) {
       status.textContent = 'セッションが終了しました。';
       stopPolling();
@@ -163,7 +180,7 @@ async function showPasskey() {
 async function showRegister() {
   stopPolling();
   try {
-    const response = await fetch('/identity/passkey/register-hint');
+    const response = await fetch('/kiosk/identity/passkey/register-hint');
     if (!response.ok) throw new Error('register_hint_failed');
     const hint = await response.json();
     qr.innerHTML = hint.qrSvg;
@@ -187,7 +204,7 @@ async function showFace() {
       const frame = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', .8));
       if (!frame) return;
       const form = new FormData(); form.set('sessionId', sessionId); form.set('frame', frame, 'frame.jpg');
-      const response = await fetch('/identity/face/frame', { method: 'POST', body: form });
+      const response = await fetch('/kiosk/identity/face/frame', { method: 'POST', body: form });
       const result = await response.json();
       if (result.state === 'issued') { status.textContent = result.attendance?.status === 'recorded' ? '出席を記録しました。' : '本人確認済みですが、出席の送信は未確認です。職員に確認してください。'; stream.getTracks().forEach((track) => track.stop()); return; }
       if (result.state === 'fallback') { status.textContent = 'パスキーまたは職員にお知らせください。'; stream.getTracks().forEach((track) => track.stop()); return; }
@@ -342,7 +359,7 @@ ${reviewScript}
 ${MFA_PANEL_SCRIPT}
 </script>`, 200, {
       ...PROTECTED_HEADERS,
-      'content-security-policy': "default-src 'self'; img-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
+      ...buildSecurityHeaders(nonce),
     });
   });
   return router;

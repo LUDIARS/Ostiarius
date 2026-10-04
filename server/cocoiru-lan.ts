@@ -4,14 +4,13 @@ import { networkInterfaces } from 'node:os';
 import type { Context } from 'hono';
 import type { HttpBindings } from '@hono/node-server';
 import { isPrivateAddress } from './face/lan-guard.ts';
-
-const PROXY_HEADERS = ['forwarded', 'x-forwarded-for', 'x-real-ip', 'cf-connecting-ip', 'cf-ray'];
+import { hasForwardedHeaders } from './http-security/forwarded-headers.ts';
 const normalize = (address: string): string => address.replace(/^::ffff:/i, '').split('%')[0] ?? '';
 
 /** The operator selects the venue interface; VPN/other interfaces cannot grant attendance. */
 export function createCocoiruLanGuard(interfaceName: string): (c: Context) => boolean {
   return (c) => {
-    if (PROXY_HEADERS.some((name) => c.req.raw.headers.has(name))) return false;
+    if (hasForwardedHeaders(c.req.raw.headers)) return false;
     const socket = (c.env as Partial<HttpBindings> | undefined)?.incoming?.socket;
     if (!socket?.remoteAddress || !socket.localAddress) return false;
     const remote = normalize(socket.remoteAddress);

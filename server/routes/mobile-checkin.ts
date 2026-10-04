@@ -10,6 +10,10 @@
 
 import { Hono } from 'hono';
 import type { AttendanceSender } from '../attendance-delivery.ts';
+import { REQUEST_NONCE_HEADER, REQUEST_NONCE_PATH } from '../http-security/request-nonce.ts';
+import { scriptNonce } from '../http-security/security-headers.ts';
+import { secureContextScript } from '../http-security/secure-context.ts';
+import type { VantanUserProfile } from '../vantan-user-client.ts';
 
 import { generateWifiQrPng, loginAndAttest, tokenAndAttest, type MobileCheckinDeps } from '../mobile-checkin.ts';
 
@@ -35,7 +39,15 @@ function escapeHtml(s: string): string {
     .replace(/'/g, '&#39;');
 }
 
-function renderPage(deps: MobileCheckinRouteDeps): string {
+/**
+ * LAN 向け応答に載せるプロフィール。確認表示に要る学科・学年だけで、氏名は載せない
+ * (照合に不要な個人データを LAN へ流さない。spec/feature/lan-https-and-lan-url.md §8)。
+ */
+export function publicProfile(profile: VantanUserProfile | null | undefined): { departmentName: string; grade: number } | null {
+  return profile ? { departmentName: profile.departmentName, grade: profile.grade } : null;
+}
+
+function renderPage(deps: MobileCheckinRouteDeps, nonce: string): string {
   const hasWifi = Boolean(deps.wifiSsid);
   const hasAedilis = Boolean(deps.aedilisBaseUrl);
   const hasPasswordCheckin = hasAedilis && deps.passwordCheckinEnabled;
@@ -53,6 +65,8 @@ function renderPage(deps: MobileCheckinRouteDeps): string {
     ? `
     <section class="card">
       <h2>チェックイン</h2>
+      <p class="error" data-insecure-context-guidance hidden></p>
+      <div data-requires-secure-context>
       <p class="note">
         パスキー登録済みの PC が無い方向けの簡易チェックインです。
         Cernere アカウントのメールアドレス / パスワードでログインします
@@ -68,6 +82,7 @@ function renderPage(deps: MobileCheckinRouteDeps): string {
         <button type="submit" id="submit-btn">チェックインする</button>
       </form>
       <div id="result" role="status"></div>
+      </div>
     </section>`
     : `
     <section class="card">
@@ -77,7 +92,8 @@ function renderPage(deps: MobileCheckinRouteDeps): string {
 
   const script = hasPasswordCheckin
     ? `
-    <script>
+    <script nonce="${nonce}">
+      ${secureContextScript()}
       const form = document.getElementById('checkin-form');
       const resultEl = document.getElementById('result');
       const submitBtn = document.getElementById('submit-btn');
@@ -87,8 +103,7 @@ function renderPage(deps: MobileCheckinRouteDeps): string {
         const parts = [];
         if (profile.departmentName) parts.push(profile.departmentName);
         if (profile.grade) parts.push(profile.grade + '年');
-        if (profile.name) parts.push(profile.name + ' さん');
-        return parts.length ? '<p class="profile">' + parts.join(' / ') + '</p>' : '';
+        return parts.join(' / ');
       }
 
       form.addEventListener('submit', async (ev) => {
@@ -98,9 +113,11 @@ function renderPage(deps: MobileCheckinRouteDeps): string {
         resultEl.textContent = 'ログイン中…';
         try {
           const fd = new FormData(form);
+          const nonceRes = await fetch('${REQUEST_NONCE_PATH}', { method: 'POST' });
+          if (!nonceRes.ok) throw new Error('nonce_failed');
           const loginRes = await fetch('/checkin/mobile-login', {
             method: 'POST',
-            headers: { 'content-type': 'application/json' },
+            headers: { 'content-type': 'application/json', '${REQUEST_NONCE_HEADER}': (await nonceRes.json()).nonce },
             body: JSON.stringify({ email: fd.get('email'), password: fd.get('password') }),
           });
           const loginBody = await loginRes.json();
@@ -117,7 +134,14 @@ function renderPage(deps: MobileCheckinRouteDeps): string {
           }
 
           resultEl.className = 'success';
-          resultEl.innerHTML = 'チェックインしました。' + renderProfile(loginBody.profile);
+          resultEl.textContent = 'チェックインしました。';
+          const profileText = renderProfile(loginBody.profile);
+          if (profileText) {
+            const profileEl = document.createElement('p');
+            profileEl.className = 'profile';
+            profileEl.textContent = profileText;
+            resultEl.append(profileEl);
+          }
           form.reset();
         } catch (e) {
           resultEl.className = 'error';
@@ -163,7 +187,7 @@ function renderPage(deps: MobileCheckinRouteDeps): string {
 export function makeMobileCheckinRouter(deps: MobileCheckinRouteDeps): Hono {
   const r = new Hono();
 
-  r.get('/mobile-checkin', (c) => c.html(renderPage(deps)));
+  r.get('/mobile-checkin', (c) => c.html(renderPage(deps, scriptNonce(c))));
 
   r.get('/mobile-checkin/wifi-qr.png', async (c) => {
     if (!deps.wifiSsid) {
@@ -190,9 +214,9 @@ export function makeMobileCheckinRouter(deps: MobileCheckinRouteDeps): Hono {
       }
       if (deps.sendAttendance) {
         const attendance = await deps.sendAttendance(result.attestation);
-        return c.json({ profile: result.profile, attendance }, attendance.status === 'recorded' ? 200 : 502);
+        return c.json({ profile: publicProfile(result.profile), attendance }, attendance.status === 'recorded' ? 200 : 502);
       }
-      return c.json(result);
+      return c.json({ ...result, profile: publicProfile(result.profile) });
     });
   }
 
@@ -218,9 +242,9 @@ export function makeMobileCheckinRouter(deps: MobileCheckinRouteDeps): Hono {
       // 開発者ツールに余分に残す必要はない。
       if (deps.sendAttendance) {
         const attendance = await deps.sendAttendance(result.attestation);
-        return c.json({ profile: result.profile, attendance }, attendance.status === 'recorded' ? 200 : 502);
+        return c.json({ profile: publicProfile(result.profile), attendance }, attendance.status === 'recorded' ? 200 : 502);
       }
-      return c.json({ attestation: result.attestation, profile: result.profile });
+      return c.json({ attestation: result.attestation, profile: publicProfile(result.profile) });
     });
   }
 

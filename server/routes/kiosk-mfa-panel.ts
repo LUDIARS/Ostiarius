@@ -12,8 +12,8 @@ export const MFA_PANEL_HTML = `
     <h2>現地確認（多要素認証）の確認待ち</h2>
     <p>ログイン中の端末から確認の依頼が届いています。依頼した本人が確認してください。</p>
     <p id="mfa-expires"></p>
-    <button id="mfa-face">顔で確認</button>
-    <button id="mfa-passkey">パスキーで確認</button>
+    <button id="mfa-face" data-requires-secure-context>顔で確認</button>
+    <button id="mfa-passkey" data-requires-secure-context>パスキーで確認</button>
     <p id="mfa-status" role="status"></p>
   </section>`;
 
@@ -79,7 +79,7 @@ async function confirmMfaByFace() {
   if (!mfaSessionId) return;
   const target = mfaSessionId;
   mfaFace.disabled = true; mfaPasskey.disabled = true;
-  const created = await fetch('/identity/session', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ purpose: 'verify' }) });
+  const created = await fetch('/kiosk/identity/session', { method: 'POST', headers: { 'content-type': 'application/json', 'x-ostiarius-nonce': await requestNonce() }, body: JSON.stringify({ purpose: 'verify' }) });
   if (!created.ok) throw new Error('session_create_failed');
   const identitySessionId = (await created.json()).sessionId;
   mfaStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: false });

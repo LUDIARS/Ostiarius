@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Hono } from 'hono';
 
-import { KioskAuthorization } from '../server/kiosk-authorization.ts';
+import { KioskAuthorization, kioskTokenExchangeDecision } from '../server/kiosk-authorization.ts';
 import { isLoopbackAddress } from '../server/loopback.ts';
 
 const KIOSK_TOKEN = 'test-kiosk-token';
@@ -13,8 +13,8 @@ const KIOSK_TOKEN = 'test-kiosk-token';
  * (= loopback 扱いしない fail-closed 経路)。 loopback 判定そのものは純関数
  * `isLoopbackAddress` 側で検証する。
  */
-function app() {
-  const authorization = new KioskAuthorization(KIOSK_TOKEN);
+function app(remoteAddress: string | null = null) {
+  const authorization = new KioskAuthorization(KIOSK_TOKEN, undefined, () => remoteAddress);
   const router = new Hono();
   router.get('/kiosk-probe', (c) => (
     authorization.isAuthorized(c) ? c.json({ ok: true }) : c.json({ error: 'kiosk_unauthorized' }, 401)
@@ -57,10 +57,34 @@ describe('KioskAuthorization', () => {
     expect(response.status).toBe(401);
   });
 
-  it('still accepts the shared token when the connection is not loopback', async () => {
-    const response = await app().request('http://localhost/kiosk-probe', {
+  it('accepts a loopback connection without a token', async () => {
+    const response = await app('127.0.0.1').request('http://localhost/kiosk-probe');
+    expect(response.status).toBe(200);
+  });
+
+  it('does not treat a loopback connection carrying forwarding headers as the kiosk', async () => {
+    for (const header of ['x-forwarded-for', 'forwarded', 'cf-connecting-ip', 'cf-ray', 'x-real-ip', 'x-forwarded-host']) {
+      const response = await app('127.0.0.1').request('http://localhost/kiosk-probe', { headers: { [header]: '203.0.113.9' } });
+      expect(response.status, header).toBe(401);
+    }
+  });
+
+  it('accepts the shared token from another LAN device only over TLS', async () => {
+    const tls = await app('192.168.1.20').request('https://ostiarius.test/kiosk-probe', {
       headers: { 'x-ostiarius-kiosk': KIOSK_TOKEN },
     });
-    expect(response.status).toBe(200);
+    expect(tls.status).toBe(200);
+    const plain = await app('192.168.1.20').request('http://ostiarius.test/kiosk-probe', {
+      headers: { 'x-ostiarius-kiosk': KIOSK_TOKEN },
+    });
+    expect(plain.status).toBe(401);
+  });
+});
+
+describe('kioskTokenExchangeDecision', () => {
+  it('allows the token exchange only on loopback or TLS', () => {
+    expect(kioskTokenExchangeDecision('loopback')).toBe('allowed');
+    expect(kioskTokenExchangeDecision('tls')).toBe('allowed');
+    expect(kioskTokenExchangeDecision('insecure')).toBe('secure_transport_required');
   });
 });

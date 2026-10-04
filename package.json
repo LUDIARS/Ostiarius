@@ -8,6 +8,7 @@
     "node": ">=24"
   },
   "scripts": {
+    "dev:excubitor": "npm run dev",
     "dev": "tsx watch --env-file-if-exists=.env.secrets --env-file-if-exists=.env server/index.ts",
     "start": "tsx --env-file-if-exists=.env.secrets --env-file-if-exists=.env server/index.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",

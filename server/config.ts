@@ -61,6 +61,8 @@ export interface OstiariusConfig {
   /** OSTIARIUS_TLS_MODE / OSTIARIUS_LAN_HOSTNAME / OSTIARIUS_TLS_*_PEM の解決結果。
    *  証明書は server/acme の CLI が発行し、運用者が Infisical に登録したものを受け取る。 */
   tls: OstiariusTlsConfig;
+  /** OSTIARIUS_LAN_HOSTNAME (任意)。HTTP 運用でも Host 許可リストに足す名前。 */
+  lanHostname: string;
   keyPath: string;
   /** OSTIARIUS_PRIVATE_KEY — Infisical inject の PKCS#8 PEM (本番、 空なら file 経路) */
   privateKeyPem: string;
@@ -129,6 +131,7 @@ export function loadConfig(): OstiariusConfig {
     rpId: requireEnv('OSTIARIUS_RP_ID'),
     pwaOrigin: normalizeHttpOrigin('OSTIARIUS_PWA_ORIGIN', requireEnv('OSTIARIUS_PWA_ORIGIN')),
     tls: resolveTlsConfig(),
+    lanHostname: optionalEnv('OSTIARIUS_LAN_HOSTNAME', '').toLowerCase(),
     keyPath: resolve(optionalEnv('OSTIARIUS_KEY_PATH', join(dataDir, 'gateway.key'))),
     // 本番は Infisical / secret-agent が PEM を inject する。 dev は file 経路。
     privateKeyPem: optionalEnv('OSTIARIUS_PRIVATE_KEY', ''),

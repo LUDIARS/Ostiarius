@@ -14,7 +14,6 @@
 //   5. router を mount → listen
 
 import { Hono } from 'hono';
-import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
 import { createServer as createHttpsServer } from 'node:https';
 import type { AddressInfo } from 'node:net';
@@ -47,7 +46,9 @@ import { makeIdentityEnrollRouter } from './routes/identity-enroll.ts';
 import { CernereConsentClient } from './face/cernere-consent-client.ts';
 import { retryConsentRevocations } from './face/consent-outbox.ts';
 import { loadLocalFaceKeys } from './face/local-key.ts';
-import { createLanGuard } from './face/lan-guard.ts';
+import { createLanGuard, createSecureLanGuard } from './face/lan-guard.ts';
+import { installLanHardening } from './http-security/install.ts';
+import { SECURE_CONTEXT_METHODS } from './http-security/secure-context.ts';
 import { syncFaceData } from './face/revocation-sync.ts';
 import { startFaceBackup } from './face/backup.ts';
 import { FaceReviewService } from './face/review-service.ts';
@@ -77,6 +78,8 @@ const challenges = new ChallengeStore(config.challengeTtlMs);
 // 顔データの封緘鍵はこのホストで生成・保管する (env / Infisical からは配らない)。
 const faceKeys = loadLocalFaceKeys(config.dataDir);
 const isLan = createLanGuard();
+// 写真・テンプレート・登録系は LAN 内でも平文の別端末へ流さない (TLS か loopback)。
+const isSecureLan = createSecureLanGuard();
 const sidecar = createSidecarClient(config.faceSidecarUrl);
 const staffSessions = new StaffSessionStore();
 const enrollment = new EnrollmentSessionStore();
@@ -134,15 +137,16 @@ if (vantanUserClient) {
 
 const app = new Hono();
 
-// CORS は PWA の origin のみ許可 (CONTRACTS §3: 全 API に CORS)。
-// 現地確認 MFA の端末向け API は Cernere の画面から呼ばれるので、そちらの router が
-// Cernere の公開 origin だけを許可する (ここで preflight を返すと上書きできない)。
-const pwaCors = cors({
-  origin: config.pwaOrigin,
-  allowMethods: ['GET', 'POST', 'OPTIONS'],
-  allowHeaders: ['content-type', 'authorization', 'x-ostiarius-staff'],
+// HTTP の LAN 内サービスとしての防御 (spec/feature/lan-https-and-lan-url.md §8)。
+// CORS は PWA の origin のみ許可 (CONTRACTS §3)。現地確認 MFA の端末向け API は Cernere の
+// 画面から呼ばれるので、Cernere の公開 origin だけを許可し、ヘッダ付与はその router に任せる。
+installLanHardening(app, {
+  port: config.port,
+  lanHostname: config.tls.enabled ? config.tls.hostname : config.lanHostname,
+  corsOrigins: [config.pwaOrigin],
+  corsScopes: [{ pathPrefix: ONSITE_MFA_API_PREFIX, origins: [config.cernereFrontendUrl], corsHeaders: 'router' }],
+  isLan,
 });
-app.use('*', (c, next) => (c.req.path.startsWith(ONSITE_MFA_API_PREFIX) ? next() : pwaCors(c, next)));
 
 // 会場端末の接続先は日によって変わる。 /api/health は Excubitor が定期的に叩くので、
 // 検出結果は TTL キャッシュして毎回 UDP socket を張らない (lan-route.ts)。
@@ -166,7 +170,11 @@ app.get('/api/health', async (c) => {
     facePending: countFaceTemplates(db, 'pending'),
     sidecar: sidecarHealth,
     outbox: countOutbox(db),
-    methods: ['passkey', ...config.legacyMethods.filter((method) => method === 'session' || method === 'password')],
+    // パスワード / Bearer を送る互換経路は TLS のときだけ使える (平文 LAN では 403)。
+    methods: ['passkey', ...(config.tls.enabled ? config.legacyMethods.filter((method) => method === 'session' || method === 'password') : [])],
+    lanTransport: config.tls.enabled ? 'https' : 'http',
+    // この一覧の手段は secure context (HTTPS か localhost) の画面でしか出さない。
+    secureContextMethods: SECURE_CONTEXT_METHODS,
   });
 });
 
@@ -185,20 +193,25 @@ app.route(
   }),
 );
 
-app.route('/', makeIdentityRouter({
+// kiosk 画面は cookie の Path (/kiosk) に収まる `/kiosk/identity/*` から同じ router を使う。
+const identityRouter = makeIdentityRouter({
   db, challenges, lanId: config.lanId, facilityId: config.facilityId, rpId: config.rpId,
   pwaOrigin: config.pwaOrigin, privateKey: keyPair.privateKey, cernereFrontendUrl: config.cernereFrontendUrl,
   kioskAuthorization, sessions: identitySessions,
   sendAttendance: attendanceSender(config.aedilisBaseUrl, config.aedilisGatewayToken),
-}));
+});
+app.route('/', identityRouter);
+app.route('/kiosk', identityRouter);
 app.route('/', makeKioskRouter({
   authorization: kioskAuthorization,
   pwaOrigin: config.pwaOrigin,
   sessions: identitySessions,
 }));
-app.route('/', makeIdentityFaceRouter({ db, flow: faceFlow, authorization: kioskAuthorization, privateKey: keyPair.privateKey, lanId: config.lanId, facilityId: config.facilityId, aedilisBaseUrl: config.aedilisBaseUrl, aedilisGatewayToken: config.aedilisGatewayToken }));
-app.route('/', makeIdentityStaffRouter({ db, challenges, lanId: config.lanId, facilityId: config.facilityId, rpId: config.rpId, pwaOrigin: config.pwaOrigin, privateKey: keyPair.privateKey, staffRoles: config.staffRoles, sessions: staffSessions, aedilisBaseUrl: config.aedilisBaseUrl, aedilisGatewayToken: config.aedilisGatewayToken, dailyOverrideLimit: config.dailyOverrideLimit, keys: faceKeys, isLan, syncNow: syncFaceNow }));
-app.route('/', makeIdentityEnrollRouter({ db, sidecar, staff: staffSessions, enrollment, keys: faceKeys, modelId: MODEL_ID, facilityId: config.facilityId, consentSource: config.consentSource, baseUrl: config.cernereBaseUrl, serviceToken: cernereServiceToken, isLan }));
+const identityFaceRouter = makeIdentityFaceRouter({ db, flow: faceFlow, authorization: kioskAuthorization, privateKey: keyPair.privateKey, lanId: config.lanId, facilityId: config.facilityId, aedilisBaseUrl: config.aedilisBaseUrl, aedilisGatewayToken: config.aedilisGatewayToken });
+app.route('/', identityFaceRouter);
+app.route('/kiosk', identityFaceRouter);
+app.route('/', makeIdentityStaffRouter({ db, challenges, lanId: config.lanId, facilityId: config.facilityId, rpId: config.rpId, pwaOrigin: config.pwaOrigin, privateKey: keyPair.privateKey, staffRoles: config.staffRoles, sessions: staffSessions, aedilisBaseUrl: config.aedilisBaseUrl, aedilisGatewayToken: config.aedilisGatewayToken, dailyOverrideLimit: config.dailyOverrideLimit, keys: faceKeys, isLan: isSecureLan, syncNow: syncFaceNow }));
+app.route('/', makeIdentityEnrollRouter({ db, sidecar, staff: staffSessions, enrollment, keys: faceKeys, modelId: MODEL_ID, facilityId: config.facilityId, consentSource: config.consentSource, baseUrl: config.cernereBaseUrl, serviceToken: cernereServiceToken, isLan: isSecureLan }));
 app.route('/', makeIdentityReviewRouter({
   db,
   staff: staffSessions,
@@ -210,7 +223,7 @@ app.route('/', makeIdentityReviewRouter({
   staffRoles: config.staffRoles,
   shotsRequired: 6,
   consentSource: config.consentSource,
-  isLan,
+  isLan: isSecureLan,
 }));
 // 現地確認 MFA (spec/feature/onsite-mfa-factor.md §2.1)。attestation は purpose:"mfa" で署名し、
 // Cernere へだけ送る。パスキーは出席を送らない専用インスタンスで検証する。
