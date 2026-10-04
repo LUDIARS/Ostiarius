@@ -53,6 +53,11 @@ import { startFaceBackup } from './face/backup.ts';
 import { FaceReviewService } from './face/review-service.ts';
 import { makeIdentityReviewRouter } from './routes/identity-review.ts';
 import { createServiceTokenProvider, staticServiceTokenProvider, type ServiceTokenProvider } from './cernere-service-token.ts';
+import { PasskeyCheckinService } from './passkey-checkin.ts';
+import { OnsiteMfaSessionStore } from './onsite-mfa/session-store.ts';
+import { onsiteMfaSubmitter } from './onsite-mfa/cernere-submit.ts';
+import { makeOnsiteMfaRouter, ONSITE_MFA_API_PREFIX } from './routes/onsite-mfa.ts';
+import { makeOnsiteMfaKioskRouter } from './routes/onsite-mfa-kiosk.ts';
 
 const config = loadConfig();
 // Explicit venue-interface enrollment keeps this new flow separate from legacy session check-in.
@@ -129,15 +134,15 @@ if (vantanUserClient) {
 
 const app = new Hono();
 
-// CORS は PWA の origin のみ許可 (CONTRACTS §3: 全 API に CORS)
-app.use(
-  '*',
-  cors({
-    origin: config.pwaOrigin,
-    allowMethods: ['GET', 'POST', 'OPTIONS'],
-    allowHeaders: ['content-type', 'authorization', 'x-ostiarius-staff'],
-  }),
-);
+// CORS は PWA の origin のみ許可 (CONTRACTS §3: 全 API に CORS)。
+// 現地確認 MFA の端末向け API は Cernere の画面から呼ばれるので、そちらの router が
+// Cernere の公開 origin だけを許可する (ここで preflight を返すと上書きできない)。
+const pwaCors = cors({
+  origin: config.pwaOrigin,
+  allowMethods: ['GET', 'POST', 'OPTIONS'],
+  allowHeaders: ['content-type', 'authorization', 'x-ostiarius-staff'],
+});
+app.use('*', (c, next) => (c.req.path.startsWith(ONSITE_MFA_API_PREFIX) ? next() : pwaCors(c, next)));
 
 // 会場端末の接続先は日によって変わる。 /api/health は Excubitor が定期的に叩くので、
 // 検出結果は TTL キャッシュして毎回 UDP socket を張らない (lan-route.ts)。
@@ -206,6 +211,22 @@ app.route('/', makeIdentityReviewRouter({
   shotsRequired: 6,
   consentSource: config.consentSource,
   isLan,
+}));
+// 現地確認 MFA (spec/feature/onsite-mfa-factor.md §2.1)。attestation は purpose:"mfa" で署名し、
+// Cernere へだけ送る。パスキーは出席を送らない専用インスタンスで検証する。
+const onsiteMfaSessions = new OnsiteMfaSessionStore();
+app.route('/', makeOnsiteMfaRouter({ sessions: onsiteMfaSessions, isLan, corsOrigin: config.cernereFrontendUrl }));
+app.route('/', makeOnsiteMfaKioskRouter({
+  authorization: kioskAuthorization,
+  flow: faceFlow,
+  passkey: new PasskeyCheckinService({ db, challenges, lanId: config.lanId, facilityId: config.facilityId, rpId: config.rpId, pwaOrigin: config.pwaOrigin, privateKey: keyPair.privateKey }),
+  completion: {
+    sessions: onsiteMfaSessions,
+    privateKey: keyPair.privateKey,
+    lanId: config.lanId,
+    facilityId: config.facilityId,
+    submit: onsiteMfaSubmitter({ cernereBaseUrl: config.cernereBaseUrl, serviceToken: cernereServiceToken }),
+  },
 }));
 if (config.aedilisBaseUrl && config.aedilisGatewayToken) setInterval(() => { void retryOutbox(db, config.aedilisBaseUrl, config.aedilisGatewayToken); }, 30_000).unref?.();
 // 同意撤回の再送 (ローカル削除は済んでいる。Cernere 側の同意へ revokedAt を打つだけ)。

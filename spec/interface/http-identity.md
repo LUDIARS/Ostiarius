@@ -110,3 +110,26 @@ assertion 自体を認証境界とする公開 API で、kiosk token を要求�
 
 ### `POST /identity/admin/sync` — 失効指示・同意の即時 pull (職員セッション必須)
 ### `GET /api/health` — 既存に `faceTemplates` (active) / `facePending` / `sidecar: { ok, modelId }` / `outbox` 件数を追加
+
+## 現地確認 MFA (onsite factor)
+
+詳細は [../feature/onsite-mfa-factor.md](../feature/onsite-mfa-factor.md) §2.1.1。
+
+### `POST /api/mfa/onsite/sessions` — 利用者端末から (施設 LAN のみ、CORS は Cernere の公開 origin のみ)
+- req: `{ nonce }` (Cernere が発行した 32 byte base64url)
+- res 202: `{ sessionId, expiresAt }` (5 分) / 409 `{ error: "kiosk_busy" }` / 403 `{ error: "lan_required" }` / 400 `{ error: "bad_request" }`
+
+### `GET /api/mfa/onsite/sessions/:sessionId` — 端末表示用 (施設 LAN のみ)
+- res 200: `{ state: "waiting" | "submitted" | "rejected" | "expired", error? }` / 404 `{ error: "session_not_found" }`
+
+### `GET /kiosk/mfa/current` — kiosk 画面の確認待ち (kiosk 認可)
+- res 200: `{ session: { sessionId, expiresAt } | null }`
+
+### `POST /kiosk/mfa/:sessionId/face/frame` (kiosk 認可)
+- req: `multipart/form-data` `identitySessionId` (`POST /identity/session` で作る), `frame`
+- res 200: `/identity/face/frame` と同じ形。issued のときだけ `mfa: { state, error? }` を足す。user id は載せない
+- res 409: `{ error: "mfa_session_closed", mfa }` (期限切れ・送信済み)
+
+### `POST /kiosk/mfa/:sessionId/passkey/begin` / `finish` (kiosk 認可)
+- begin: WebAuthn options (challenge を MFA セッションに束縛)
+- finish: req `{ response }` → res 200 `{ mfa: { state, error? } }`。出席は送らない

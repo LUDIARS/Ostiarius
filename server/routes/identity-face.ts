@@ -16,7 +16,7 @@ export function makeIdentityFaceRouter(deps: { db: Database.Database; flow: Face
       const result = await deps.flow.process(sessionId, new Uint8Array(await frame.arrayBuffer()));
       if (!result) return c.json({ error: 'session_expired' }, 410);
       if (result.state === 'issued' && result.subjectUserId) {
-        const attestation = signAttestation({ sub: result.subjectUserId, placeId: deps.facilityId, lanId: deps.lanId, nonce: sessionId, issuedAt: Date.now(), method: result.result?.assurance === 'high' ? 'face' : 'face_passive', assurance: result.result?.assurance ?? 'medium' }, deps.privateKey);
+        const attestation = signAttestation({ sub: result.subjectUserId, placeId: deps.facilityId, lanId: deps.lanId, nonce: sessionId, issuedAt: Date.now(), method: result.result?.assurance === 'high' ? 'face' : 'face_passive', assurance: result.result?.assurance ?? 'medium', purpose: 'attendance' }, deps.privateKey);
         const delivered = await deliverAttestation(deps.db, deps.aedilisBaseUrl, deps.aedilisGatewayToken, attestation);
         const { subjectUserId: _privateSubject, ...publicResult } = result;
         return c.json({ ...publicResult, attendance: { status: delivered ? 'recorded' : 'pending' } });

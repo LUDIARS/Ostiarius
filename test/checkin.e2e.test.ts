@@ -108,6 +108,7 @@ describe('Ostiarius check-in E2E (software authenticator = 生体タップ代替
     expect(v.payload?.issuedAt).toBeGreaterThan(0);
     expect(v.payload?.method).toBe('passkey');
     expect(v.payload?.assurance).toBe('medium');
+    expect(v.payload?.purpose).toBe('attendance');
   });
 
   it('credential 未同期だと begin が 409 を返す', async () => {

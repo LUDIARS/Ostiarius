@@ -71,6 +71,13 @@ function updateCounter(
   }
 }
 
+/** assertion 検証で確定した本人と、検証に使った challenge / kiosk セッション。 */
+export interface VerifiedAssertion {
+  userId: string;
+  challenge: string;
+  sessionId?: string;
+}
+
 /** WebAuthn begin/finish の共通実装。旧checkinとidentity別名の差分はroute側だけに限定する。 */
 export class PasskeyCheckinService {
   private readonly sessionByChallenge = new Map<string, { sessionId: string; expiresAt: number }>();
@@ -101,7 +108,11 @@ export class PasskeyCheckinService {
     return c.json(options);
   }
 
-  async finish(c: Context): Promise<Response> {
+  /**
+   * assertion を同期済み公開鍵だけで検証し、本人 (Cernere user id) を確定する。
+   * attestation の署名・送信はしない。用途 (出席 / 現地確認 MFA) ごとに呼び出し側が決める。
+   */
+  async verifyAssertion(c: Context): Promise<VerifiedAssertion | Response> {
     const body = (await c.req.json().catch(() => null)) as
       | { response?: AuthenticationResponseJSON }
       | null;
@@ -147,27 +158,35 @@ export class PasskeyCheckinService {
     }
     if (!verification.verified) return c.json({ error: 'assertion_failed' }, 401);
     updateCounter(this.deps.db, credential, verification.authenticationInfo.newCounter);
+    return { userId: credential.user_id, challenge, sessionId };
+  }
+
+  async finish(c: Context): Promise<Response> {
+    const verified = await this.verifyAssertion(c);
+    if (verified instanceof Response) return verified;
+    const { userId, challenge, sessionId } = verified;
     const attestation = signAttestation(
       {
-        sub: credential.user_id,
+        sub: userId,
         placeId: this.deps.facilityId,
         lanId: this.deps.lanId,
         nonce: challenge,
         issuedAt: Date.now(),
         method: 'passkey',
         assurance: 'medium',
+        purpose: 'attendance',
       },
       this.deps.privateKey,
     );
     recordVerificationIssued(this.deps.db, {
       method: 'passkey',
-      subjectUser: credential.user_id,
+      subjectUser: userId,
       sessionId,
     });
     const attendance = await this.deps.sendAttendance?.(attestation);
     if (attendance?.status === 'failed') return c.json({ ok: false, error: '出席記録を確認できませんでした。管理者に確認してください。', attendance }, 502);
     if (sessionId) this.onIssued?.(sessionId);
-    this.onVerified?.(credential.user_id);
+    this.onVerified?.(userId);
     return c.json({ ok: true, attestation, attendance, method: 'passkey', assurance: 'medium' });
   }
 

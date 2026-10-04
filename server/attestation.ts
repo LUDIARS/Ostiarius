@@ -3,11 +3,16 @@
 // 形式 (CONTRACTS.md §1 / spike shared.ts と完全一致):
 //   attestation = base64url(JSON payload) + "." + base64url(Ed25519 署名)
 //
-// ゲートウェイの永続 Ed25519 秘密鍵で署名し、 Aedilis が `lanId` で引く
-// ゲートウェイ公開鍵 (SPKI PEM) で検証する。 この形式を変えると Aedilis 側の
-// 検証が破綻するため、 payload のフィールド・順序・エンコードは固定。
+// ゲートウェイの永続 Ed25519 秘密鍵で署名し、 Aedilis (出席) / Cernere (現地確認 MFA) が
+// ゲートウェイ公開鍵 (SPKI PEM) で検証する。 この形式を変えると受け手の検証が破綻するため、
+// payload のフィールド・順序・エンコードは固定:
+//   { sub, placeId, lanId, nonce, issuedAt, method, assurance, purpose }
+// purpose は末尾追加 (spec/feature/onsite-mfa-factor.md §3)。 欠落した旧形式は attendance。
 
 import { sign as cryptoSign, verify as cryptoVerify, type KeyObject } from 'node:crypto';
+import { contract } from '../contract-runtime.ts'; /* augur-inject:import:7d9d6302 */
+import augurContract_4ac07e6b from '../contracts/sign-attestation.contract.ts'; /* augur-inject:contract-predicate:bdbc477a */
+import augurContract_ebb55281 from '../contracts/attestation-purpose.contract.ts'; /* augur-inject:contract-predicate:7fc5e03b */
 
 export interface AttestationPayload {
   sub: string; // Cernere user id (assertion で確定した本人)
@@ -19,10 +24,19 @@ export interface AttestationPayload {
   method?: AttestationMethod;
   /** P1 以降の保証水準。旧5フィールドの署名済み payload を読むため optional。 */
   assurance?: AttestationAssurance;
+  /** 用途。purpose 導入前の署名済み payload を読むため optional (欠落 = attendance)。 */
+  purpose?: AttestationPurpose;
 }
 
 export type AttestationMethod = 'face' | 'face_passive' | 'passkey' | 'staff_override' | 'session' | 'password';
 export type AttestationAssurance = 'high' | 'medium' | 'manual' | 'low';
+export type AttestationPurpose = 'attendance' | 'mfa';
+
+/** 新しく署名する payload。発行側は method / assurance / purpose を必ず明示する。 */
+export type SignableAttestation = Required<AttestationPayload>;
+
+/** payload のキー順。JSON.stringify は挿入順なので、この順で組み直してから署名する。 */
+export const ATTESTATION_FIELD_ORDER = ['sub', 'placeId', 'lanId', 'nonce', 'issuedAt', 'method', 'assurance', 'purpose'] as const;
 
 export function b64urlEncode(buf: Buffer): string {
   return buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -32,11 +46,33 @@ export function b64urlDecode(s: string): Buffer {
   return Buffer.from(s.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
 }
 
-export function signAttestation(payload: AttestationPayload, privateKey: KeyObject): string {
-  const body = b64urlEncode(Buffer.from(JSON.stringify(payload)));
+/** purpose の読み取り。欠落した旧形式は出席用とみなす。 */
+export function attestationPurpose(payload: Pick<AttestationPayload, 'purpose'>): AttestationPurpose {
+  return payload.purpose ?? 'attendance';
+}
+// @ts-expect-error augur-inject
+attestationPurpose = contract(attestationPurpose, { ...augurContract_ebb55281, contractId: 'C-11', mode: 'observe', sample: 1, where: 'server/attestation.ts:47', rule: 'contract-wrap', id: 'ebb55281' }); /* augur-inject:contract-wrap:ebb55281 */
+
+function canonicalPayload(payload: SignableAttestation): SignableAttestation {
+  return {
+    sub: payload.sub,
+    placeId: payload.placeId,
+    lanId: payload.lanId,
+    nonce: payload.nonce,
+    issuedAt: payload.issuedAt,
+    method: payload.method,
+    assurance: payload.assurance,
+    purpose: payload.purpose,
+  };
+}
+
+export function signAttestation(payload: SignableAttestation, privateKey: KeyObject): string {
+  const body = b64urlEncode(Buffer.from(JSON.stringify(canonicalPayload(payload))));
   const sig = cryptoSign(null, Buffer.from(body), privateKey);
   return `${body}.${b64urlEncode(sig)}`;
 }
+// @ts-expect-error augur-inject
+signAttestation = contract(signAttestation, { ...augurContract_4ac07e6b, contractId: 'C-10', mode: 'observe', sample: 1, where: 'server/attestation.ts:64', rule: 'contract-wrap', id: '4ac07e6b' }); /* augur-inject:contract-wrap:4ac07e6b */
 
 export function verifyAttestation(
   token: string,

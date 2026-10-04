@@ -1,6 +1,9 @@
 # feature: 現地確認 MFA 要素 (onsite factor)
 
-**Status: Designed** (2026-10-01。LLM 作成の設計案に、同日 neco が判断点 4 つを決定。実装は未着手)
+**Status: O1 Implemented** (2026-10-01 設計・neco 決定。2026-10-04 Ostiarius 側 O1 = `purpose` の追加・LAN 内の nonce 受け口・
+1 kiosk 1 セッションの MFA セッション・Cernere への送信を実装。Cernere 側 C1/C2 と実機確認 F1 は別タスク)
+
+Actio: `actio:52c388d6-dfb6-455a-baa8-b40ce8053293` (O1)
 
 Ostiarius の現在の役割は **所在確認用の副次的認証** である。kiosk での顔認証・パスキーで
 「本人がその場に居た」ことを確かめ、Ed25519 attestation を Aedilis の出席記録へ渡す
@@ -71,8 +74,35 @@ Corpus `spec/plan/auth-plane-consolidation.md` §5.1
 - attestation は Ostiarius が Cernere へ直接送る。利用者端末を中継させない。
   送信には Ostiarius の project client credentials から得た scope 付き service token を使う
   (`onsite-mfa:submit`。Corpus 認証集約 P2/P3 の方式に揃える)。
-- 同じ kiosk に複数の利用者が同時に nonce を送った場合の扱い (待ち行列にするか、
-  端末側で kiosk を選ばせるか) は実装時に決める。
+- 同じ kiosk に複数の利用者が同時に nonce を送った場合は **待ち行列にしない**。1 kiosk で同時に有効な
+  MFA セッションは 1 件だけで、2 件目は `409 { error: "kiosk_busy" }` を返す。端末は別の kiosk を選ぶか、
+  先のセッションが終わる (送信済み・拒否・5 分の期限切れ) まで待つ。kiosk の前に立つ人と nonce の対応を
+  画面上で取り違えないため、1 件ずつ処理する (2026-10-04 O1 で決定)。
+
+#### 2.1.1 Ostiarius の受け口 (O1 実装)
+
+| 経路 | 認可 | 内容 |
+|---|---|---|
+| `POST /api/mfa/onsite/sessions` | 施設 LAN のみ (`face/lan-guard.ts`: 接続元が private / loopback で中継ヘッダ無し)。LAN 外は `403 lan_required` | body `{ nonce }` (32 byte base64url = 43 文字) → `202 { sessionId, expiresAt }` / `409 kiosk_busy` / `400 bad_request` |
+| `GET /api/mfa/onsite/sessions/:sessionId` | 同上 | `{ state: "waiting" \| "submitted" \| "rejected" \| "expired", error? }` / 不明は `404 session_not_found` |
+| `GET /kiosk/mfa/current` | kiosk 認可 | kiosk 画面の確認待ち `{ session: { sessionId, expiresAt } \| null }` (nonce は画面にも出さない) |
+| `POST /kiosk/mfa/:sessionId/face/frame` | kiosk 認可 | 既存の顔 1:N + 生体性 (`FaceVerificationFlow`)。issued で MFA を完了 |
+| `POST /kiosk/mfa/:sessionId/passkey/begin` / `finish` | kiosk 認可 | 既存のパスキー検証 (`PasskeyCheckinService.verifyAssertion`)。`passkey` / `medium` で MFA を完了 |
+
+- `/api/mfa/onsite/*` の CORS は Cernere の公開 origin (`CERNERE_FRONTEND_URL`) だけを許可する
+  (PWA origin の全体 CORS から外す)。公開 origin から施設 LAN のアドレスへの fetch になるので、
+  Private Network Access の preflight に `Access-Control-Allow-Private-Network: true` を返す。
+- セッションはメモリ上だけに持つ (再起動で失効)。期限は Cernere の ticket と同じ 5 分。
+- 本人確定後は `purpose: "mfa"` で署名し、`POST {CERNERE_BASE_URL}/api/mfa/onsite/attestations` へ
+  body `{ attestation }` だけを送る。token は `cernere-service-token.ts` の provider (project client credentials)。
+  出席 (Aedilis) へは送らない。照合した user id は kiosk の応答にも載せない。
+- 状態 API の `error` は Cernere の固定語彙 (`invalid_format` `unknown_kiosk` `revoked_kiosk` `invalid_signature`
+  `purpose_mismatch` `nonce_unknown` `nonce_used` `subject_mismatch` `stale` `assurance_insufficient`
+  `place_not_allowed` `mfa_revision_changed`) をそのまま返す。Ostiarius 側で決まる送信失敗は別の語彙にする:
+  `service_token_unavailable` (token を取れない) / `cernere_unreachable` (通信失敗) /
+  `submit_unauthorized` (語彙外の 401/403。scope `onsite-mfa:submit` の未宣言など) / `submit_failed` (その他)。
+- 拒否・送信失敗は終端状態で、kiosk はすぐ次のセッションを受けられる。利用者はログイン画面から
+  nonce を送り直す。
 
 ### 2.2 備品の貸し出しでの代替 (QR フリー)
 
@@ -91,6 +121,9 @@ payload の末尾に `purpose` を追加する (既存 7 フィールドの後�
 ```
 
 - `purpose` が無い attestation は `attendance` とみなす (既存の Aedilis 経路の互換)。
+  Ostiarius の読み取りは `attestationPurpose()` (server/attestation.ts)。
+- Ostiarius が発行する出席用 attestation (passkey / 顔 / 職員 override / session / password) は
+  `purpose: "attendance"` を明示する。署名時は呼び出し側のキー順に依らず固定順へ組み直す。
 - Aedilis は `purpose: "mfa"` を拒否する。Cernere は `purpose: "mfa"` 以外を拒否する。
 - 署名対象は payload 全体なので、`purpose` の書き換えは署名検証で落ちる。
 
@@ -154,5 +187,5 @@ method と assurance の対応は [identity-verification.md](identity-verificati
 2. **C1 Cernere** — kiosk 公開鍵の登録・失効、`onsite` method、challenge 発行と §4.2 の検証。
 3. **C2 Cernere** — サービス設定 (managed project の宣言) からの自動要求。Corpus 認証集約 P3 の
    宣言 (`service_scopes`) と同じ管理者所有フィールドの扱いに揃える。
-4. **O1 Ostiarius** — `purpose` の追加、LAN 内の nonce 受け口、MFA セッション、Cernere への送信。
+4. **O1 Ostiarius** — `purpose` の追加、LAN 内の nonce 受け口、MFA セッション、Cernere への送信。(2026-10-04 実装、§2.1.1)
 5. **F1 実機確認** — 2026-10-04 の所在確認の実機テスト (P4) の後に行う。

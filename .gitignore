@@ -11,3 +11,6 @@ __pycache__/
 
 # Anatomia のローカル状態 (ドメイン定義の正本は spec/domains/)
 .anatomia/
+
+# Augur contract-wrap の観測ログ (augur contracts report が読む)
+/logs/

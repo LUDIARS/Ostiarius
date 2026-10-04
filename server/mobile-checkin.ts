@@ -142,7 +142,7 @@ export async function loginAndAttest(
   const nonce = newNonce();
   deps.challenges.put(nonce);
   const attestation = signAttestation(
-    { sub: userId, placeId: deps.facilityId, lanId: deps.lanId, nonce, issuedAt: Date.now(), method: 'password', assurance: 'low' },
+    { sub: userId, placeId: deps.facilityId, lanId: deps.lanId, nonce, issuedAt: Date.now(), method: 'password', assurance: 'low', purpose: 'attendance' },
     deps.privateKey,
   );
   recordVerificationIssued(deps.db, { method: 'password', subjectUser: userId });
@@ -209,7 +209,7 @@ export async function tokenAndAttest(
   const nonce = newNonce();
   deps.challenges.put(nonce);
   const attestation = signAttestation(
-    { sub: userId, placeId: deps.facilityId, lanId: deps.lanId, nonce, issuedAt: Date.now(), method: 'session', assurance: 'low' },
+    { sub: userId, placeId: deps.facilityId, lanId: deps.lanId, nonce, issuedAt: Date.now(), method: 'session', assurance: 'low', purpose: 'attendance' },
     deps.privateKey,
   );
   recordVerificationIssued(deps.db, { method: 'session', subjectUser: userId });

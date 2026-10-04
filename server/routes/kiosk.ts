@@ -4,6 +4,7 @@ import { toString as qrToString } from 'qrcode';
 import type { IdentitySessionStore } from '../identity-session-store.ts';
 import type { KioskAuthorization } from '../kiosk-authorization.ts';
 import { REVIEW_PANEL_HTML, REVIEW_PANEL_SCRIPT } from './kiosk-review-panel.ts';
+import { MFA_PANEL_HTML, MFA_PANEL_SCRIPT } from './kiosk-mfa-panel.ts';
 
 const PROTECTED_HEADERS = {
   'cache-control': 'no-store',
@@ -46,6 +47,7 @@ export function makeKioskRouter(args: {
 <title>本人確認 kiosk</title>
 <main>
   <h1>本人確認</h1>
+  ${MFA_PANEL_HTML}
   <button id="passkey">パスキーで出席</button>
   <button id="register">端末を登録</button>
   <button id="face">顔認証</button>
@@ -337,6 +339,7 @@ cancelEnroll.onclick = () => { void cancelEnrollment(); };
 photoFile.onchange = () => { photoSubmit.disabled = !(photoFile.files && photoFile.files[0]); };
 photoSubmit.onclick = () => submitEnrollmentPhoto().catch(() => { photoStatus.textContent = '写真を送信できませんでした。'; photoSubmit.disabled = false; });
 ${reviewScript}
+${MFA_PANEL_SCRIPT}
 </script>`, 200, {
       ...PROTECTED_HEADERS,
       'content-security-policy': "default-src 'self'; img-src 'self'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",

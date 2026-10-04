@@ -83,6 +83,51 @@
       "module": "contracts/start-cernere-sync.contract.ts",
       "mode": "observe",
       "sample": 1
+    },
+    {
+      "id": "C-10",
+      "criterion": "C-10 signAttestation(payload, privateKey): 署名する payload を {sub, placeId, lanId, nonce, issuedAt, method, assurance, purpose} の固定順で直列化し、purpose を attendance | mfa に限る",
+      "symbol": "signAttestation",
+      "file": "server/attestation.ts",
+      "module": "contracts/sign-attestation.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-11",
+      "criterion": "C-11 attestationPurpose(payload): purpose 欠落の旧形式 payload は attendance として読み、明示された purpose はそのまま返す",
+      "symbol": "attestationPurpose",
+      "file": "server/attestation.ts",
+      "module": "contracts/attestation-purpose.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-12",
+      "criterion": "C-12 openOnsiteMfaSession(store, nonce): 有効な MFA セッションが既にあれば kiosk_busy を返し、無ければ期限 5 分の確認待ちセッションを 1 件だけ開く",
+      "symbol": "openOnsiteMfaSession",
+      "file": "server/onsite-mfa/session-store.ts",
+      "module": "contracts/open-onsite-mfa-session.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-13",
+      "criterion": "C-13 submitOnsiteMfaAttestation(options, attestation): Cernere へは purpose:\"mfa\" の固定 8 フィールドの attestation だけを送り (顔データを載せない)、応答を accepted か固定語彙の拒否コードへ写す",
+      "symbol": "submitOnsiteMfaAttestation",
+      "file": "server/onsite-mfa/cernere-submit.ts",
+      "module": "contracts/submit-onsite-mfa-attestation.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-14",
+      "criterion": "C-14 completeOnsiteMfa(deps, sessionId, identity): kiosk が確定した本人 (sub/method/assurance のみ) で purpose:\"mfa\" を署名して 1 回だけ送り、セッションを submitted か rejected へ進める",
+      "symbol": "completeOnsiteMfa",
+      "file": "server/onsite-mfa/completion.ts",
+      "module": "contracts/complete-onsite-mfa.contract.ts",
+      "mode": "observe",
+      "sample": 1
     }
   ]
 }
