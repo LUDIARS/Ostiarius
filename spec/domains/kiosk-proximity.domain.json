@@ -1,0 +1,12 @@
+{
+  "name": "kiosk-proximity",
+  "description": "Kiosk-initiated smartphone passkey attendance, with hybrid transport hints, origin and kiosk authorization, one-use session-bound challenges and explicit unsupported FeliCa status. Supporting domain of checkin-verification.",
+  "presetRules": [],
+  "templateRules": [],
+  "membership": [
+    { "pathPattern": "(^|/)server/proximity-capability\\.ts$" },
+    { "pathPattern": "(^|/)server/routes/kiosk-proximity(?:-panel)?\\.ts$" },
+    { "pathPattern": "(^|/)test/kiosk-proximity\\.test\\.ts$" }
+  ],
+  "specRefs": ["SPEC-OS-KIOSK-PROXIMITY-LOGIN"]
+}

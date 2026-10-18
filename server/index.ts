@@ -32,6 +32,7 @@ import { makeCocoiruCheckinRouter } from './routes/cocoiru-checkin.ts';
 import { makeMobileCheckinRouter } from './routes/mobile-checkin.ts';
 import { makeIdentityRouter } from './routes/identity.ts';
 import { makeKioskRouter } from './routes/kiosk.ts';
+import { makeKioskProximityRouter } from './routes/kiosk-proximity.ts';
 import { createVantanUserClient } from './vantan-user-client.ts';
 import { createLanBaseUrlResolver } from './lan-route.ts';
 import { createSidecarClient } from './face/sidecar-client.ts';
@@ -215,6 +216,12 @@ const identityRouter = makeIdentityRouter({
 });
 app.route('/', identityRouter);
 app.route('/kiosk', identityRouter);
+app.route('/', makeKioskProximityRouter({
+  db, challenges, lanId: config.lanId, facilityId: config.facilityId, rpId: config.rpId,
+  pwaOrigin: config.pwaOrigin, privateKey: keyPair.privateKey,
+  authorization: kioskAuthorization, sessions: identitySessions,
+  sendAttendance: attendanceSender(config.aedilisBaseUrl, config.aedilisGatewayToken),
+}));
 app.route('/', makeKioskRouter({
   authorization: kioskAuthorization,
   pwaOrigin: config.pwaOrigin,

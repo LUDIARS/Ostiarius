@@ -8,6 +8,7 @@ import { REQUEST_NONCE_HEADER, REQUEST_NONCE_PATH } from '../http-security/reque
 import { secureContextScript } from '../http-security/secure-context.ts';
 import { REVIEW_PANEL_HTML, REVIEW_PANEL_SCRIPT } from './kiosk-review-panel.ts';
 import { MFA_PANEL_HTML, MFA_PANEL_SCRIPT } from './kiosk-mfa-panel.ts';
+import { PROXIMITY_PANEL_HTML, PROXIMITY_PANEL_SCRIPT } from './kiosk-proximity-panel.ts';
 
 const PROTECTED_HEADERS = {
   'cache-control': 'no-store',
@@ -58,6 +59,7 @@ export function makeKioskRouter(args: {
   <h1>本人確認</h1>
   <p data-insecure-context-guidance hidden></p>
   ${MFA_PANEL_HTML}
+  ${PROXIMITY_PANEL_HTML}
   <button id="passkey">パスキーで出席</button>
   <button id="register">端末を登録</button>
   <button id="face" data-requires-secure-context>顔認証</button>
@@ -357,6 +359,7 @@ photoFile.onchange = () => { photoSubmit.disabled = !(photoFile.files && photoFi
 photoSubmit.onclick = () => submitEnrollmentPhoto().catch(() => { photoStatus.textContent = '写真を送信できませんでした。'; photoSubmit.disabled = false; });
 ${reviewScript}
 ${MFA_PANEL_SCRIPT}
+${PROXIMITY_PANEL_SCRIPT}
 </script>`, 200, {
       ...PROTECTED_HEADERS,
       ...buildSecurityHeaders(nonce),

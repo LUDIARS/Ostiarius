@@ -88,7 +88,7 @@ export class PasskeyCheckinService {
     private readonly onVerified?: (userId: string) => void,
   ) {}
 
-  async begin(c: Context, sessionId?: string): Promise<Response> {
+  async begin(c: Context, sessionId?: string, preferHybrid = false): Promise<Response> {
     this.deps.challenges.sweep();
     this.sweepSessionBindings();
     const credentials = listCredentials(this.deps.db);
@@ -100,12 +100,12 @@ export class PasskeyCheckinService {
       userVerification: 'required',
       allowCredentials: credentials.map((credential) => ({
         id: credential.credential_id,
-        transports: parseTransports(credential.transports),
+        transports: preferHybrid ? ['hybrid'] : parseTransports(credential.transports),
       })),
     });
     const expiresAt = this.deps.challenges.put(options.challenge);
     if (sessionId) this.sessionByChallenge.set(options.challenge, { sessionId, expiresAt });
-    return c.json(options);
+    return c.json(preferHybrid ? { ...options, hints: ['hybrid'] } : options);
   }
 
   /**
@@ -120,7 +120,7 @@ export class PasskeyCheckinService {
     if (!response || typeof response.id !== 'string') {
       return c.json({ error: 'bad_request', code: 'response required' }, 400);
     }
-    if (!isCanonicalBase64Url(response.response.signature)) {
+    if (!response.response || typeof response.response.signature !== 'string' || !isCanonicalBase64Url(response.response.signature)) {
       return c.json({ error: 'assertion_failed' }, 401);
     }
     const credential = getCredential(this.deps.db, response.id);
@@ -161,10 +161,14 @@ export class PasskeyCheckinService {
     return { userId: credential.user_id, challenge, sessionId };
   }
 
-  async finish(c: Context): Promise<Response> {
+  async finish(c: Context, expectedSessionId?: string, sessionActive?: () => boolean): Promise<Response> {
     const verified = await this.verifyAssertion(c);
     if (verified instanceof Response) return verified;
     const { userId, challenge, sessionId } = verified;
+    if (expectedSessionId !== undefined && sessionId !== expectedSessionId) {
+      return c.json({ error: 'challenge_mismatch' }, 400);
+    }
+    if (sessionActive && !sessionActive()) return c.json({ error: 'session_closed' }, 410);
     const attestation = signAttestation(
       {
         sub: userId,
