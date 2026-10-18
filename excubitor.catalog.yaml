@@ -11,10 +11,10 @@ services:
     component: face-sidecar
     port: 17591
     repo: LUDIARS/Ostiarius
-    runtime: python
+    runtime: node
     cwd: ${ARS_ROOT}/Ostiarius/face-sidecar
     # 実機手順 (venv / fetch-models / pytest) は docs/E2E-identity.md §A-2。モデル置き場は FACE_SIDECAR_MODELS_DIR (既定 face-sidecar/models)。
-    command: uvicorn face_sidecar.app:app --host 127.0.0.1 --port ${port}
+    command: node scripts/start.mjs ${port}
     env:
       FACE_SIDECAR_MODELS_DIR: ${ARS_ROOT}/Ostiarius/face-sidecar/models
     autostart: false
