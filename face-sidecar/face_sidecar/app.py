@@ -13,6 +13,7 @@ import numpy as np
 import onnxruntime as ort
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
+from .liveness import live_probability, liveness_input
 
 MODEL_ID = "insightface/glintr100@1"
 
@@ -59,7 +60,7 @@ class OnnxAnalyzer:
         for box, points in zip(boxes, landmarks, strict=True):
             aligned = self._align(image, points)
             embedding = self._embedding(aligned)
-            liveness = self._liveness(aligned)
+            liveness = self._liveness(image, box)
             yaw, pitch = self._pose_for(landmarks_result)
             faces.append(InferenceFace(tuple(float(value) for value in box), 1.0, [tuple(map(float, point)) for point in points], liveness, embedding, yaw, pitch, self._blendshapes(landmarks_result)))
         return faces
@@ -147,10 +148,10 @@ class OnnxAnalyzer:
         value = self.embedder.run(None, {self.embedder.get_inputs()[0].name: blob})[0].reshape(-1).astype(np.float32)
         return value / np.linalg.norm(value)
 
-    def _liveness(self, aligned: np.ndarray) -> float:
-        blob = cv2.dnn.blobFromImage(cv2.resize(aligned, (80, 80)), 1 / 128, (80, 80), (127.5, 127.5, 127.5), swapRB=True)
-        value = self.liveness_model.run(None, {self.liveness_model.get_inputs()[0].name: blob})[0].reshape(-1)
-        return float(np.exp(value[-1]) / np.exp(value).sum())
+    def _liveness(self, image: np.ndarray, bbox: np.ndarray) -> float:
+        blob = liveness_input(image, bbox)
+        value = self.liveness_model.run(None, {self.liveness_model.get_inputs()[0].name: blob})[0]
+        return live_probability(value)
 
 def quality(face: InferenceFace, image: np.ndarray) -> dict[str, object]:
     width = face.bbox[2]
