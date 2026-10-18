@@ -1,6 +1,11 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { runtimeCommand } from './start.mjs';
+import { runtimeCommand, configuredPort } from './start.mjs';
+
+test('uses the service-specific topology port and never inherits a management port', () => {
+  assert.equal(configuredPort({ OSTIARIUS_FACE_RUNTIME_PORT: '17591', EXCUBITOR_PORT: '17332' }), '17591');
+  assert.equal(configuredPort({ EXCUBITOR_PORT: '17332', PORT: '3000' }), '');
+});
 
 test('launches module in a dedicated environment with loopback binding', () => {
   const command = runtimeCommand('/service with spaces', 'win32', '17591', () => true);

@@ -40,7 +40,12 @@ export function start(port) {
   });
 }
 
+export function configuredPort(env) {
+  // Catalog provides templates are expanded by Excubitor; command templates are not.
+  return env.OSTIARIUS_FACE_RUNTIME_PORT ?? '';
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  try { start(process.argv[2] ?? ''); }
+  try { start(configuredPort(process.env)); }
   catch (error) { process.stderr.write(`${error.message}\n`); process.exitCode = 1; }
 }

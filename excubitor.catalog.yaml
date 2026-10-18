@@ -14,7 +14,9 @@ services:
     runtime: node
     cwd: ${ARS_ROOT}/Ostiarius/face-sidecar
     # 実機手順 (venv / fetch-models / pytest) は docs/E2E-identity.md §A-2。モデル置き場は FACE_SIDECAR_MODELS_DIR (既定 face-sidecar/models)。
-    command: node scripts/start.mjs ${port}
+    command: node scripts/start.mjs
+    provides:
+      OSTIARIUS_FACE_RUNTIME_PORT: "${port}"
     env:
       FACE_SIDECAR_MODELS_DIR: ${ARS_ROOT}/Ostiarius/face-sidecar/models
     autostart: false

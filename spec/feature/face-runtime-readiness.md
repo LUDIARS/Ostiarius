@@ -11,6 +11,11 @@ executes `python -m uvicorn` without a shell, binds loopback, and propagates fai
 It owns and terminates its child on shutdown. Provision Python >=3.11 and install
 the declared dependencies into that dedicated environment before startup.
 
+The port comes from `OSTIARIUS_FACE_RUNTIME_PORT`, exported by the service's
+catalog `provides` entry using `${port}`. Excubitor expands topology values,
+not arbitrary command arguments. Never inherit `EXCUBITOR_PORT` (the management
+service port), invent a default, or report process startup as endpoint readiness.
+
 Model files and applicable licenses remain separate prerequisites. A live process
 whose sidecar health is `ok:false` is not an available authentication method.
 Do not weaken matching, consent, liveness, TLS or attendance-assurance checks to
