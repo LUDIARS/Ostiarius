@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { issueCertificate, LETS_ENCRYPT_PRODUCTION_DIRECTORY, LETS_ENCRYPT_STAGING_DIRECTORY } from './order.ts';
 import { decideRenewal } from './renewal.ts';
+import { resolveCloudflareToken } from './excubitor-token.ts';
 
 type Command = 'issue' | 'renew';
 
@@ -77,7 +78,10 @@ export function resolveCliConfig(args: string[], env: NodeJS.ProcessEnv = proces
 }
 
 export async function runCli(args: string[], env: NodeJS.ProcessEnv = process.env): Promise<string> {
-  const config = resolveCliConfig(args, env);
+  // Validate command/non-secret inputs before contacting Ex. Explicit token overrides remain supported.
+  const values = { ...env, ...parseOverrides(args.slice(1)) };
+  const validated = resolveCliConfig(args, { ...values, CLOUDFLARE_DNS_API_TOKEN: values.CLOUDFLARE_DNS_API_TOKEN?.trim() || 'pending-excubitor-resolution' });
+  const config = { ...validated, cloudflareToken: await resolveCloudflareToken(values) };
   if (config.command === 'renew') {
     let certificatePem: string | null = null;
     try {
@@ -89,7 +93,7 @@ export async function runCli(args: string[], env: NodeJS.ProcessEnv = process.en
     if (!decision.shouldRenew) return 'already valid';
   }
   await issueCertificate(config);
-  return 'Certificate issued. Register these Infisical environment names: OSTIARIUS_TLS_CERTIFICATE_PEM, OSTIARIUS_TLS_PRIVATE_KEY_PEM, OSTIARIUS_TLS_MODE=required';
+  return 'Certificate issued. Register these Excubitor Vault environment names: OSTIARIUS_TLS_CERTIFICATE_PEM, OSTIARIUS_TLS_PRIVATE_KEY_PEM, OSTIARIUS_TLS_MODE=required';
 }
 
 async function main(): Promise<void> {
