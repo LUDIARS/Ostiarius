@@ -14,6 +14,7 @@ import augurContract_c4bab8b2 from '../../contracts/is-allowed-host.contract.ts'
 export interface AllowedHosts {
   names: ReadonlySet<string>;
   port: number;
+  additionalPorts?: readonly number[];
 }
 
 const LOOPBACK_NAMES = ['localhost', '127.0.0.1', '[::1]'];
@@ -31,7 +32,8 @@ export function isAllowedHost(host: string | undefined, allowed: AllowedHosts): 
   if (!host) return false;
   const parsed = splitHost(host.trim());
   if (!parsed || !allowed.names.has(parsed.name)) return false;
-  return parsed.port === '' || parsed.port === String(allowed.port);
+  return parsed.port === '' || parsed.port === String(allowed.port)
+    || (allowed.additionalPorts ?? []).some((port) => parsed.port === String(port));
 }
 // @ts-expect-error augur-inject
 isAllowedHost = contract(isAllowedHost, { ...augurContract_c4bab8b2, contractId: 'C-16', mode: 'observe', sample: 1, where: 'server/http-security/host-allowlist.ts:28', rule: 'contract-wrap', id: 'c4bab8b2' }); /* augur-inject:contract-wrap:c4bab8b2 */
@@ -46,6 +48,7 @@ export function localIpv4Addresses(interfaces: NodeJS.Dict<NetworkInterfaceInfo[
 
 export interface HostAllowlistOptions {
   port: number;
+  additionalPorts?: readonly number[];
   lanHostname?: string;
   /** テスト用: LAN IPv4 の検出を差し替える。 */
   detectAddresses?: () => string[];
@@ -61,7 +64,7 @@ export function createAllowedHostsResolver(options: HostAllowlistOptions): () =>
     if (cached && now() < cached.expiresAt) return cached.value;
     const names = new Set([...LOOPBACK_NAMES, ...detect()]);
     if (options.lanHostname) names.add(options.lanHostname.toLowerCase());
-    cached = { value: { names, port: options.port }, expiresAt: now() + REFRESH_MS };
+    cached = { value: { names, port: options.port, additionalPorts: options.additionalPorts }, expiresAt: now() + REFRESH_MS };
     return cached.value;
   };
 }

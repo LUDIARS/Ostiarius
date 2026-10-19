@@ -19,6 +19,8 @@ import { createServer as createHttpsServer } from 'node:https';
 import type { AddressInfo } from 'node:net';
 
 import { loadConfig } from './config.ts';
+import { resolveLanHttpsPort } from './lan-https-port.ts';
+import { createAllowedHostsResolver } from './http-security/host-allowlist.ts';
 import { updateStartupLanDns } from './lan-dns/startup.ts';
 import { openDb, countCredentials, countFaceTemplates, countOutbox, rotateFaceEvents } from './db.ts';
 import { loadOrCreateKeyPair } from './attestation-key.ts';
@@ -65,6 +67,7 @@ import { createLocationStatementIssuer, locationStatementField } from './locatio
 import { makeLocationRouter } from './routes/location.ts';
 
 const config = loadConfig();
+const lanHttpsPort = resolveLanHttpsPort(process.env.OSTIARIUS_LAN_HTTPS_PORT, config.port, config.tls.enabled);
 const startupLanDns = await updateStartupLanDns();
 // Explicit venue-interface enrollment keeps this new flow separate from legacy session check-in.
 const cocoiruInterface = process.env.OSTIARIUS_COCOIRU_LAN_INTERFACE?.trim();
@@ -156,13 +159,16 @@ installLanHardening(app, {
   port: config.port,
   lanHostname: config.tls.enabled ? config.tls.hostname : config.lanHostname,
   corsOrigins: [config.pwaOrigin],
+  allowedHosts: createAllowedHostsResolver({ port: config.port,
+    additionalPorts: lanHttpsPort ? [lanHttpsPort] : [],
+    lanHostname: config.tls.enabled ? config.tls.hostname : config.lanHostname }),
   corsScopes: [{ pathPrefix: ONSITE_MFA_API_PREFIX, origins: [config.cernereFrontendUrl], corsHeaders: 'router' }],
   isLan,
 });
 
 // 会場端末の接続先は日によって変わる。 /api/health は Excubitor が定期的に叩くので、
 // 検出結果は TTL キャッシュして毎回 UDP socket を張らない (lan-route.ts)。
-const resolveLanBaseUrl = createLanBaseUrlResolver(config.port, {
+const resolveLanBaseUrl = createLanBaseUrlResolver(lanHttpsPort ?? config.port, {
   protocol: config.tls.enabled ? 'https' : 'http',
   hostname: config.tls.enabled ? config.tls.hostname : undefined,
 });
@@ -324,8 +330,8 @@ function provisionGatewayKey(): void {
 }
 
 function onListening(info: AddressInfo): void {
-  const protocol = config.tls.enabled ? 'https' : 'http';
-  console.log(`[ostiarius] listening on ${protocol}://0.0.0.0:${info.port}`);
+  const protocol = config.tls.enabled && !lanHttpsPort ? 'https' : 'http';
+  console.log(`[ostiarius] listening on ${protocol}://${lanHttpsPort ? '127.0.0.1' : '0.0.0.0'}:${info.port}`);
   console.log(`[ostiarius] lanId=${config.lanId} facilityId=${config.facilityId}`);
   console.log(`[ostiarius] rpId=${config.rpId} pwaOrigin=${config.pwaOrigin}`);
   console.log(`[ostiarius] cernere=${config.cernereBaseUrl}`);
@@ -340,7 +346,7 @@ function onListening(info: AddressInfo): void {
 
 // TLS を有効にした会場では HTTP へ落ちない (resolveTlsConfig が不完全な設定で起動を止める)。
 // 証明書は server/acme の CLI が発行し、運用者が Infisical へ登録したものを受け取る。
-const server = config.tls.enabled
+const server = config.tls.enabled && !lanHttpsPort
   ? serve({
     fetch: app.fetch,
     port: config.port,
@@ -350,7 +356,13 @@ const server = config.tls.enabled
       key: config.tls.privateKeyPem,
     },
   }, onListening)
-  : serve({ fetch: app.fetch, port: config.port }, onListening);
+  : serve({ fetch: app.fetch, port: config.port, ...(lanHttpsPort ? { hostname: '127.0.0.1' } : {}) }, onListening);
+
+// Keep the old localhost origin on loopback only; LAN clients use the separate TLS listener.
+const lanServer = config.tls.enabled && lanHttpsPort
+  ? serve({ fetch: app.fetch, port: lanHttpsPort, hostname: '0.0.0.0', createServer: createHttpsServer,
+    serverOptions: { cert: config.tls.certificatePem, key: config.tls.privateKeyPem } })
+  : null;
 
 // Excubitor の再起動で listen socket と Cernere WS を確実に手放す
 // (TLS listener を握ったままだと次の起動が同じ port を掴めない)。
@@ -361,6 +373,7 @@ function shutdown(): void {
   stopCernereSync();
   vantanUserClient?.close();
   server.close();
+  lanServer?.close();
 }
 process.once('SIGINT', shutdown);
 process.once('SIGTERM', shutdown);
