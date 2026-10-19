@@ -58,8 +58,10 @@ export async function issueCertificate(options: AcmeIssueOptions): Promise<void>
       await client.waitForValidStatus(challenge);
     }
 
-    await client.finalizeOrder(order, csr);
-    const fullchain = await client.getCertificate(order);
+    // Reused authorizations can make the original order "ready". acme-client
+    // treats ready as valid, so that stale order would skip its certificate URL refresh.
+    const finalizedOrder = await client.finalizeOrder(order, csr);
+    const fullchain = await client.getCertificate(finalizedOrder);
     await mkdir(options.outputDir, { recursive: true });
     await writeFile(join(options.outputDir, 'fullchain.pem'), fullchain, { encoding: 'utf8', mode: 0o644 });
     // Windows has no POSIX mode enforcement; data/acme/ is gitignored to prevent secret-key commits.
