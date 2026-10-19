@@ -19,6 +19,7 @@ import { createServer as createHttpsServer } from 'node:https';
 import type { AddressInfo } from 'node:net';
 
 import { loadConfig } from './config.ts';
+import { updateStartupLanDns } from './lan-dns/startup.ts';
 import { openDb, countCredentials, countFaceTemplates, countOutbox, rotateFaceEvents } from './db.ts';
 import { loadOrCreateKeyPair } from './attestation-key.ts';
 import { startCernereSync } from './cernere-sync.ts';
@@ -64,6 +65,7 @@ import { createLocationStatementIssuer, locationStatementField } from './locatio
 import { makeLocationRouter } from './routes/location.ts';
 
 const config = loadConfig();
+const startupLanDns = await updateStartupLanDns();
 // Explicit venue-interface enrollment keeps this new flow separate from legacy session check-in.
 const cocoiruInterface = process.env.OSTIARIUS_COCOIRU_LAN_INTERFACE?.trim();
 if (cocoiruInterface && !config.tls.enabled) {
@@ -183,6 +185,7 @@ app.get('/api/health', async (c) => {
     // パスワード / Bearer を送る互換経路は TLS のときだけ使える (平文 LAN では 403)。
     methods: ['passkey', ...(config.tls.enabled ? config.legacyMethods.filter((method) => method === 'session' || method === 'password') : [])],
     lanTransport: config.tls.enabled ? 'https' : 'http',
+    startupLanDns,
     // この一覧の手段は secure context (HTTPS か localhost) の画面でしか出さない。
     secureContextMethods: SECURE_CONTEXT_METHODS,
     // 位置の宣言 (GLAB が probe で受け取り GPS チェックインへ中継する)。未設定の会場は省略。
