@@ -81,3 +81,7 @@ services:
     provides:
       OSTIARIUS_URL: http://${host}:${port}
       OSTIARIUS_BASE_URL: http://${host}:${port}
+      # Reserved secondary LAN-only TLS listener. Enable through Vault only after
+      # certificate binding, with OSTIARIUS_LAN_HTTPS_PORT=17592 and TLS_MODE=required.
+      # This advertises the allocated endpoint, not a readiness guarantee.
+      OSTIARIUS_LAN_HTTPS_URL: https://os-lancheck.ai-run-do.com:17592

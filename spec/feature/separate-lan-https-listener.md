@@ -17,5 +17,12 @@ Vault enablement, retain the localhost HTTP health probe, bind certificate varia
 and verify both listeners through Excubitor on the main checkout. Certificate
 verification must remain enabled. Unit tests do not replace real socket checks.
 
+The service catalog allocates LAN HTTPS port 17592 via OSTIARIUS_LAN_HTTPS_URL.
+The primary health probe remains http://localhost:17590/api/health. At deployment,
+bind OSTIARIUS_LAN_HTTPS_PORT=17592 together with TLS_MODE=required and the already
+issued certificate/key. Preserve RP_ID and PWA_ORIGIN. Check both the localhost
+health response and https://os-lancheck.ai-run-do.com:17592/api/health, with normal
+certificate verification. The advertised endpoint is not evidence that TLS is enabled.
+
 Human scope: existing login must be preserved while enabling the chosen LAN-check
 hostname; linked Actio runtime task 236414d2-f2a9-449e-8015-8c507a256120.
