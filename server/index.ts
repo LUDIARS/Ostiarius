@@ -32,6 +32,9 @@ import { KioskAuthorization } from './kiosk-authorization.ts';
 import { makeCheckinRouter } from './routes/checkin.ts';
 import { attendanceSender } from './attendance-delivery.ts';
 import { makeCocoiruCheckinRouter } from './routes/cocoiru-checkin.ts';
+import { automaticAttendanceConfig } from './automatic-attendance.ts';
+import { makeAutomaticCheckinRouter } from './routes/automatic-checkin.ts';
+import { createCocoiruLanGuard } from './cocoiru-lan.ts';
 import { makeMobileCheckinRouter } from './routes/mobile-checkin.ts';
 import { makeIdentityRouter } from './routes/identity.ts';
 import { makeKioskRouter } from './routes/kiosk.ts';
@@ -67,6 +70,7 @@ import { createLocationStatementIssuer, locationStatementField } from './locatio
 import { makeLocationRouter } from './routes/location.ts';
 
 const config = loadConfig();
+const automaticAttendance = automaticAttendanceConfig(process.env, config.tls.enabled);
 const lanHttpsPort = resolveLanHttpsPort(process.env.OSTIARIUS_LAN_HTTPS_PORT, config.port, config.tls.enabled);
 const startupLanDns = await updateStartupLanDns();
 // Explicit venue-interface enrollment keeps this new flow separate from legacy session check-in.
@@ -162,7 +166,10 @@ installLanHardening(app, {
   allowedHosts: createAllowedHostsResolver({ port: config.port,
     additionalPorts: lanHttpsPort ? [lanHttpsPort] : [],
     lanHostname: config.tls.enabled ? config.tls.hostname : config.lanHostname }),
-  corsScopes: [{ pathPrefix: ONSITE_MFA_API_PREFIX, origins: [config.cernereFrontendUrl], corsHeaders: 'router' }],
+  corsScopes: [
+    { pathPrefix: ONSITE_MFA_API_PREFIX, origins: [config.cernereFrontendUrl], corsHeaders: 'router' },
+    ...(automaticAttendance ? [{ pathPrefix: '/checkin/automatic', origins: [automaticAttendance.origin], corsHeaders: 'self' as const }] : []),
+  ],
   isLan,
 });
 
@@ -302,6 +309,11 @@ if (cocoiruInterface) app.route('/', makeCocoiruCheckinRouter({
   interfaceName: cocoiruInterface,
   login: { cernereBaseUrl: config.cernereBaseUrl, facilityId: config.facilityId,
     lanId: config.lanId, challenges, privateKey: keyPair.privateKey, vantanUserClient: null, db },
+}));
+
+if (automaticAttendance) app.route('/', makeAutomaticCheckinRouter({
+  secret: automaticAttendance.secret, facilityId: config.facilityId, lanId: config.lanId,
+  privateKey: keyPair.privateKey, isSameLan: createCocoiruLanGuard(automaticAttendance.interfaceName),
 }));
 
 app.notFound((c) => c.json({ error: 'not_found' }, 404));

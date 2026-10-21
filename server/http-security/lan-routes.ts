@@ -23,6 +23,7 @@ const SENSITIVE_PATTERNS: readonly RegExp[] = [
   /^\/checkin\/mobile-login$/,
   /^\/checkin\/session$/,
   /^\/checkin\/cocoiru$/,
+  /^\/checkin\/automatic$/,
 ];
 
 const NONCE_REQUIRED_POST: readonly RegExp[] = [
@@ -40,7 +41,7 @@ const RATE_LIMITED_POST: readonly RegExp[] = [
   /^\/identity\/staff\/(?:begin|finish)$/,
   /^\/identity\/enroll\/start$/,
   /^\/kiosk\/mfa\/[^/]+\/passkey\/(?:begin|finish)$/,
-  /^\/checkin\/(?:begin|finish|mobile-login|session|cocoiru)$/,
+  /^\/checkin\/(?:begin|finish|mobile-login|session|cocoiru|automatic)$/,
 ];
 
 const matches = (patterns: readonly RegExp[], path: string): boolean => patterns.some((pattern) => pattern.test(path));
