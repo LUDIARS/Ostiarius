@@ -1,0 +1,14 @@
+{
+  "name": "cocoiru-scoped-session",
+  "description": "Cocoiru native service sessions and live same-LAN low-assurance attendance proof issuance; other kiosk/mobile purposes remain separate.",
+  "presetRules": [],
+  "templateRules": [],
+  "membership": [
+    { "pathPattern": "(^|/)server/cocoiru-(lan|native-config|session-store)\\.ts$" },
+    { "pathPattern": "(^|/)server/routes/cocoiru-(checkin|native-session)\\.ts$" },
+    { "pathPattern": "(^|/)server/vendor/cernere-composite/" },
+    { "pathPattern": "(^|/)test/cocoiru-(native-session|scoped-checkin)\\.test\\.ts$" },
+    { "pathPattern": "(^|/)test/cocoiru-authority-fixture\\.ts$" }
+  ],
+  "specRefs": ["spec/feature/cocoiru-scoped-native-session.md", "spec/feature/cocoiru-lan-attendance.md", "spec/setup/cocoiru-native-session.md"]
+}

@@ -1,4 +1,6 @@
 node_modules/
+.local/
+.claude/import-reviews/
 /data/
 /data/acme/
 *.key

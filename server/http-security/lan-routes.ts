@@ -13,6 +13,7 @@
 import type { Context } from 'hono';
 
 const SENSITIVE_PATTERNS: readonly RegExp[] = [
+  /^\/api\/auth\/native\/(?:exchange|logout)$/,
   /^\/kiosk\/proximity(?:\/|$)/,
   /^\/(?:kiosk\/)?identity\/face\/frame$/,
   /^\/kiosk\/mfa\/[^/]+\/face\/frame$/,
@@ -34,6 +35,7 @@ const NONCE_REQUIRED_POST: readonly RegExp[] = [
 ];
 
 const RATE_LIMITED_POST: readonly RegExp[] = [
+  /^\/api\/auth\/native\/exchange$/,
   /^\/kiosk\/proximity\/[^/]+\/(?:begin|finish)$/,
   /^\/api\/lan\/nonce$/,
   /^\/api\/mfa\/onsite\/sessions$/,

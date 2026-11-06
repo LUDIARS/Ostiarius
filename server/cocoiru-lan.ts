@@ -8,7 +8,7 @@ import { hasForwardedHeaders } from './http-security/forwarded-headers.ts';
 const normalize = (address: string): string => address.replace(/^::ffff:/i, '').split('%')[0] ?? '';
 
 /** The operator selects the venue interface; VPN/other interfaces cannot grant attendance. */
-export function createCocoiruLanGuard(interfaceName: string): (c: Context) => boolean {
+export function createCocoiruLanGuard(interfaceName: string, interfacesNow = networkInterfaces): (c: Context) => boolean {
   return (c) => {
     if (hasForwardedHeaders(c.req.raw.headers)) return false;
     const socket = (c.env as Partial<HttpBindings> | undefined)?.incoming?.socket;
@@ -16,7 +16,7 @@ export function createCocoiruLanGuard(interfaceName: string): (c: Context) => bo
     const remote = normalize(socket.remoteAddress);
     const local = normalize(socket.localAddress);
     if (!isPrivateAddress(remote) || !isPrivateAddress(local)) return false;
-    const interfaces = networkInterfaces()[interfaceName] ?? [];
+    const interfaces = interfacesNow()[interfaceName] ?? [];
     return interfaces.some((entry) => {
       if (entry.internal || normalize(entry.address) !== local || !entry.cidr) return false;
       const family = isIP(local);

@@ -15,18 +15,25 @@ absent if unset. HTTPS with a trusted venue certificate is required; enabling th
 interface with TLS disabled fails startup. An unknown interface cannot issue proofs.
 No runtime configuration or service restart is part of this change.
 
-POST /checkin/cocoiru requires the user's Cernere Bearer access token (no userId in body).
-Os validates it through /api/auth/me, then returns {attestation}. Token validity alone
-cannot bypass the LAN guard. Requests to Cr have a 10-second timeout and no redirects.
+POST /checkin/cocoiru now requires the Os-owned opaque native Bearer established
+by project-bound PKCE exchange; [scoped native sessions](cocoiru-scoped-native-session.md)
+supersedes the old global user-token verification. No userId is body-owned, no
+/api/auth/me fallback remains in this endpoint, and the shared Cr SDK consumes
+an important one-use permit before current LAN/session checks and proof issuance.
+Token validity alone cannot bypass the LAN guard. SDK requests are bounded and
+never follow redirects.
 The proof retains method=session, assurance=low, nonce, issuedAt, placeId and lanId;
 it never claims biometric/passkey assurance. The response is no-store.
 
-Cocoiru passes the proof to GLAB POST /api/x/attendance/checkin using the same user token.
+Cocoiru passes the proof to GLAB POST /api/x/attendance/checkin using a separate
+GLAB-owned opaque service session, representing the same Cr account.
 Only GLAB's successful recorded/alreadyCheckedIn result counts as attendance. Os's
 proof response alone does not mean a record exists. Existing gateway-key provisioning,
 subject matching, freshness and replay protection remain mandatory.
 
-Acceptance: allowed connected SSID + same venue subnet + valid user + GLAB confirmation
+Acceptance: allowed connected SSID + same venue subnet + current scoped user + GLAB confirmation
 records attendance; wrong SSID, outside subnet, proxy, invalid session, untrusted TLS,
 missing configuration and downstream failures never become success. Test execution
-and test-file creation remain pending human authorization; typecheck only in this change.
+is delegated to Revisor in the current explicit Cr implementation request; the
+agent does not run tests or start services. Physical LAN/recorded attendance and
+coordinated cutover remain pending.

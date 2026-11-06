@@ -32,6 +32,9 @@ import { KioskAuthorization } from './kiosk-authorization.ts';
 import { makeCheckinRouter } from './routes/checkin.ts';
 import { attendanceSender } from './attendance-delivery.ts';
 import { makeCocoiruCheckinRouter } from './routes/cocoiru-checkin.ts';
+import { cocoiruNativeConfig } from './cocoiru-native-config.ts';
+import { CocoiruSessionStore } from './cocoiru-session-store.ts';
+import { CernereComposite } from './vendor/cernere-composite/composite.js';
 import { automaticAttendanceConfig } from './automatic-attendance.ts';
 import { makeAutomaticCheckinRouter } from './routes/automatic-checkin.ts';
 import { createCocoiruLanGuard } from './cocoiru-lan.ts';
@@ -77,10 +80,10 @@ const automaticAttendance = automaticAttendanceConfig(process.env, config.tls.en
 const lanHttpsPort = resolveLanHttpsPort(process.env.OSTIARIUS_LAN_HTTPS_PORT, config.port, config.tls.enabled);
 const startupLanDns = await updateStartupLanDns();
 // Explicit venue-interface enrollment keeps this new flow separate from legacy session check-in.
-const cocoiruInterface = process.env.OSTIARIUS_COCOIRU_LAN_INTERFACE?.trim();
-if (cocoiruInterface && !config.tls.enabled) {
-  throw new Error('Cocoiru attendance requires OSTIARIUS_TLS_MODE=required and a venue certificate');
-}
+const cocoiruConfig = cocoiruNativeConfig(process.env, config.tls.enabled);
+const cocoiruAuthority = cocoiruConfig ? new CernereComposite({ cernereUrl: config.cernereBaseUrl,
+  projectKey: cocoiruConfig.projectKey, clientId: cocoiruConfig.clientId, clientSecret: cocoiruConfig.clientSecret }) : null;
+const cocoiruSessions = cocoiruAuthority && cocoiruConfig ? new CocoiruSessionStore(cocoiruAuthority, cocoiruConfig.projectKey) : null;
 
 const db = openDb(config.dbPath);
 const identitySessions = new IdentitySessionStore();
@@ -322,10 +325,9 @@ app.route(
   }),
 );
 
-if (cocoiruInterface) app.route('/', makeCocoiruCheckinRouter({
-  interfaceName: cocoiruInterface,
-  login: { cernereBaseUrl: config.cernereBaseUrl, facilityId: config.facilityId,
-    lanId: config.lanId, challenges, privateKey: keyPair.privateKey, vantanUserClient: null, db },
+if (cocoiruConfig && cocoiruSessions) app.route('/', makeCocoiruCheckinRouter({
+  interfaceName: cocoiruConfig.interfaceName, publicOrigin: cocoiruConfig.publicOrigin, sessions: cocoiruSessions,
+  facilityId: config.facilityId, lanId: config.lanId, challenges, privateKey: keyPair.privateKey, db,
 }));
 
 if (automaticAttendance) app.route('/', makeAutomaticCheckinRouter({
@@ -399,6 +401,8 @@ let isShuttingDown = false;
 function shutdown(): void {
   if (isShuttingDown) return;
   isShuttingDown = true;
+  cocoiruSessions?.close();
+  cocoiruAuthority?.dispose();
   stopCernereSync();
   vantanUserClient?.close();
   server.close();

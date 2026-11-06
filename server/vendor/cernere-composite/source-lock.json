@@ -1,0 +1,54 @@
+{
+  "repository": "LUDIARS/Cernere",
+  "revision": "71d6c368dc188bbb95f9af323d347060425d99d6",
+  "files": [
+    {
+      "name": "composite.ts",
+      "path": "packages/composite/src/composite.ts",
+      "sha256": "33266cee88655c4c3dbd4722cc9f25be9cb55ceb7cb36a8902f9ba313da2872b"
+    },
+    {
+      "name": "service-session.ts",
+      "path": "packages/composite/src/service-session.ts",
+      "sha256": "6bd1ff81695e2ccbbc76eaf8f5a8fff8a15054c23d2990f7897c785e1291701c"
+    },
+    {
+      "name": "delegation.ts",
+      "path": "packages/composite/src/delegation.ts",
+      "sha256": "5ed3c57f90b28ae3be8beb85f0ca3e87930020ad13bfe62b2d777d1f1a137991"
+    },
+    {
+      "name": "service-identity.ts",
+      "path": "packages/composite/src/service-identity.ts",
+      "sha256": "b9035df49abcfed9cd6ef53891e5bff415e903c750a96ba8254b568d0d2f167c"
+    },
+    {
+      "name": "upload.ts",
+      "path": "packages/composite/src/upload.ts",
+      "sha256": "e535feb0bf95e899004c533ac7246167381868b19c6b6a865cda778839a361af"
+    },
+    {
+      "name": "upload-body.ts",
+      "path": "packages/composite/src/upload-body.ts",
+      "sha256": "1ff397c2894d55af2050549eb0f74ac77a9c62a75be3a9cd1315c26d131b7a62"
+    },
+    {
+      "name": "captured-operation.ts",
+      "path": "packages/composite/src/captured-operation.ts",
+      "sha256": "11afdcfded0b99accc90e49f6a9a2d5c09f18ba57082eeafa34b73ce096aaebf"
+    },
+    {
+      "name": "types.ts",
+      "path": "packages/composite/src/types.ts",
+      "sha256": "44ca529d30f4d3e1c3f7ace5601b75610f6c6eb3b9a4c258630539d0eb9ed232"
+    },
+    {
+      "name": "LICENSE",
+      "path": "LICENSE",
+      "sha256": "66f59a74cffaf242f3b21c0f3926df8e4272f0f5da90c4b0b73c36073834b677"
+    }
+  ],
+  "license": "MIT",
+  "runtimeDependencies": [],
+  "adoption": "Unmodified server-only source snapshot; hashes refer to Git LF bytes, not working-tree CRLF."
+}
