@@ -8,6 +8,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolveTlsConfig, type OstiariusTlsConfig } from './tls-config.ts';
 import { resolveFacilityLocation, type FacilityLocation } from './facility-location.ts';
+import { resolveFacilityId } from './facility-id.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -50,6 +51,7 @@ function normalizeHttpOrigin(name: string, value: string): string {
 export interface OstiariusConfig {
   port: number;
   lanId: string;
+  /** OSTIARIUS_FACILITY_ID — Cernere の組織 UUID (小文字に正規化済み)。 */
   facilityId: string;
   /** OSTIARIUS_FACILITY_LAT / _LON / _RADIUS_M。3 値が揃わなければ null = 位置の宣言を出さない
    *  (GPS チェックイン不可、spec/feature/gps-location-statement.md §2)。 */
@@ -128,7 +130,8 @@ export function loadConfig(): OstiariusConfig {
   const config: OstiariusConfig = {
     port: Number(optionalEnv('OSTIARIUS_PORT', '17590')),
     lanId: requireEnv('OSTIARIUS_LAN_ID'),
-    facilityId: requireEnv('OSTIARIUS_FACILITY_ID'),
+    // Cernere の組織 UUID。UUID でなければ設定エラーで起動を止める (facility-id.ts)。
+    facilityId: resolveFacilityId(requireEnv('OSTIARIUS_FACILITY_ID')),
     facilityLocation: resolveFacilityLocation(process.env),
     cernereBaseUrl,
     cernereFrontendUrl,

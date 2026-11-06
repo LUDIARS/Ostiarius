@@ -41,6 +41,7 @@ const MFA_ERROR_TEXT = {
   service_token_unavailable: 'ログインサーバーへ送信できません。職員に連絡してください。',
   cernere_unreachable: 'ログインサーバーに接続できません。しばらくしてからお試しください。',
   submit_unauthorized: 'この端末には送信の権限がありません。職員に連絡してください。',
+  purpose_not_allowed: '確認結果の用途がこの送信先と一致しないため送信しませんでした。',
   submit_failed: '確認結果を送信できませんでした。',
 };
 

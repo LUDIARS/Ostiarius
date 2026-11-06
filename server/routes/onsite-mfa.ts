@@ -7,14 +7,12 @@
 // (CERNERE_FRONTEND_URL) だけを許可する。LAN の外 (中継ヘッダ付き・公開アドレス) からは
 // 403 lan_required を返す。これが「現地に居る」ことの最初の条件になる。
 
-import { Hono, type Context, type MiddlewareHandler } from 'hono';
+import { Hono, type Context } from 'hono';
 import { cors } from 'hono/cors';
+import { allowPrivateNetwork, CERNERE_NONCE_PATTERN as NONCE_PATTERN } from '../http-security/private-network-access.ts';
 import { openOnsiteMfaSession, type OnsiteMfaSessionStore } from '../onsite-mfa/session-store.ts';
 
 export const ONSITE_MFA_API_PREFIX = '/api/mfa/onsite/';
-
-/** Cernere の nonce は 32 byte 乱数の base64url (padding なし = 43 文字)。 */
-const NONCE_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 
 export interface OnsiteMfaRouteDeps {
   sessions: OnsiteMfaSessionStore;
@@ -23,17 +21,6 @@ export interface OnsiteMfaRouteDeps {
   /** Cernere の公開 origin。CORS で許可する唯一の origin。 */
   corsOrigin: string;
 }
-
-/**
- * 公開 origin のページから施設 LAN のアドレスへ fetch すると、ブラウザは Private Network
- * Access の preflight を送る。許可しないと Cernere の画面から nonce を届けられない。
- */
-const allowPrivateNetwork: MiddlewareHandler = async (c, next) => {
-  if (c.req.method === 'OPTIONS' && c.req.header('access-control-request-private-network') === 'true') {
-    c.res.headers.set('Access-Control-Allow-Private-Network', 'true');
-  }
-  await next();
-};
 
 export function makeOnsiteMfaRouter(deps: OnsiteMfaRouteDeps): Hono {
   const router = new Hono();

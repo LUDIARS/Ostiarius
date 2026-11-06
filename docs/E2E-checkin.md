@@ -97,7 +97,7 @@ npm run dev                 # 既定 listen: 17502 (AEDILIS_PORT)
 ```bash
 cd Ostiarius
 export OSTIARIUS_LAN_ID=venue-1
-export OSTIARIUS_FACILITY_ID=room-101         # Aedilis の予約 facilityId と一致
+export OSTIARIUS_FACILITY_ID=<Cernere の組織 UUID>  # Aedilis の予約 facilityId と一致。UUID でないと起動しない
 export CERNERE_BASE_URL=http://<cernere-host>:8080
 export CERNERE_PROJECT_CLIENT_ID=<project client id>
 export CERNERE_PROJECT_CLIENT_SECRET=<project client secret>  # passkey export 用Bearerを都度取得

@@ -7,7 +7,7 @@
 import { ATTESTATION_FIELD_ORDER, b64urlDecode } from '../server/attestation.ts';
 import { CERNERE_ONSITE_ERROR_CODES, type OnsiteMfaSubmitResult } from '../server/onsite-mfa/cernere-submit.ts';
 
-const LOCAL_ERROR_CODES = ['service_token_unavailable', 'cernere_unreachable', 'submit_unauthorized', 'submit_failed'];
+const LOCAL_ERROR_CODES = ['purpose_not_allowed', 'service_token_unavailable', 'cernere_unreachable', 'submit_unauthorized', 'submit_failed'];
 
 // 対象モジュールと相互 import になるので、定数は述語の評価時に読む。
 

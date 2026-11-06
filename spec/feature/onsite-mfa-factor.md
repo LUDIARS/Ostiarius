@@ -117,7 +117,7 @@ payload の末尾に `purpose` を追加する (既存 7 フィールドの後�
 
 ```jsonc
 { "sub", "placeId", "lanId", "nonce", "issuedAt", "method", "assurance",
-  "purpose": "attendance" | "mfa" }
+  "purpose": "attendance" | "mfa" | "registration" }
 ```
 
 - `purpose` が無い attestation は `attendance` とみなす (既存の Aedilis 経路の互換)。
@@ -126,6 +126,8 @@ payload の末尾に `purpose` を追加する (既存 7 フィールドの後�
   `purpose: "attendance"` を明示する。署名時は呼び出し側のキー順に依らず固定順へ組み直す。
 - Aedilis は `purpose: "mfa"` を拒否する。Cernere は `purpose: "mfa"` 以外を拒否する。
 - 署名対象は payload 全体なので、`purpose` の書き換えは署名検証で落ちる。
+- `purpose: "registration"` は会場ネットワーク限定の新規登録専用 ([venue-registration.md](venue-registration.md))。
+  Ostiarius の出席経路と MFA 経路はこの purpose を作らず、送る前の検査 (`server/attestation-purpose-guard.ts`) で断る。
 
 ## 4. Cernere 側の検証
 

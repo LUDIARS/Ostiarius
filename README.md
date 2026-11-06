@@ -60,7 +60,7 @@ assertion を検証する。
 |---|---|---|
 | `OSTIARIUS_PORT` | listen port | `17590` |
 | `OSTIARIUS_LAN_ID` | このゲートウェイの ID (attestation.lanId) | **必須** |
-| `OSTIARIUS_FACILITY_ID` | 紐づく施設 (attestation.placeId) | **必須** |
+| `OSTIARIUS_FACILITY_ID` | 紐づく施設 = Cernere の組織 UUID (attestation.placeId)。UUID でない値は起動エラー | **必須** |
 | `CERNERE_BASE_URL` | passkey export の取得元 | **必須** |
 | `CERNERE_PROJECT_CLIENT_ID` / `CERNERE_PROJECT_CLIENT_SECRET` | Cernere project client credential。Excubitor が起動ごとに注入する (catalog の `cernere_launch_credentials`)。service token はここから都度取り直す | **必須** (下記の代替可) |
 | `CERNERE_SERVICE_TOKEN` | 手発行の固定 service Bearer。**TTL 60 分**で失効するので運用者の一時確認用。上の client credential があれば不要 | _(空)_ |

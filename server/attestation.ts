@@ -10,6 +10,9 @@
 // purpose は末尾追加 (spec/feature/onsite-mfa-factor.md §3)。 欠落した旧形式は attendance。
 // purpose "location" は位置の宣言 (server/location-statement.ts) 専用で、payload の形が違う
 // (spec/feature/gps-location-statement.md)。受け手は出席・MFA の attestation として受理しない。
+// purpose "registration" は会場ネットワーク限定の新規登録 (spec/feature/venue-registration.md)。
+// 本人確認をしないので sub は null で、method "lan" / assurance "network" に固定する。
+// 出席 (Aedilis) と MFA の経路はこの purpose を作らず、送らない (attestation-purpose-guard.ts)。
 
 import { sign as cryptoSign, verify as cryptoVerify, type KeyObject } from 'node:crypto';
 import { contract } from '../contract-runtime.ts'; /* augur-inject:import:7d9d6302 */
@@ -17,7 +20,7 @@ import augurContract_4ac07e6b from '../contracts/sign-attestation.contract.ts'; 
 import augurContract_ebb55281 from '../contracts/attestation-purpose.contract.ts'; /* augur-inject:contract-predicate:7fc5e03b */
 
 export interface AttestationPayload {
-  sub: string; // Cernere user id (assertion で確定した本人)
+  sub: string | null; // Cernere user id (assertion で確定した本人)。会場登録だけ null
   placeId: string; // = facilityId。 出席対象の施設/部屋
   lanId: string; // 発行ゲートウェイ ID (Aedilis が公開鍵を引くキー)
   nonce: string; // 検証に使った challenge (base64url)。 replay 検出用
@@ -30,12 +33,32 @@ export interface AttestationPayload {
   purpose?: AttestationPurpose;
 }
 
-export type AttestationMethod = 'face' | 'face_passive' | 'passkey' | 'staff_override' | 'session' | 'password';
-export type AttestationAssurance = 'high' | 'medium' | 'manual' | 'low';
-export type AttestationPurpose = 'attendance' | 'mfa' | 'location';
+export type AttestationMethod = 'face' | 'face_passive' | 'passkey' | 'staff_override' | 'session' | 'password' | 'lan';
+export type AttestationAssurance = 'high' | 'medium' | 'manual' | 'low' | 'network';
+export type AttestationPurpose = 'attendance' | 'mfa' | 'location' | 'registration';
 
-/** 新しく署名する payload。発行側は method / assurance / purpose を必ず明示する。 */
-export type SignableAttestation = Required<AttestationPayload>;
+/** 本人を確定した attestation (出席・MFA)。発行側は method / assurance / purpose を必ず明示する。 */
+export type SubjectAttestation = Required<AttestationPayload> & {
+  sub: string;
+  method: Exclude<AttestationMethod, 'lan'>;
+  assurance: Exclude<AttestationAssurance, 'network'>;
+  purpose: Exclude<AttestationPurpose, 'registration' | 'location'>;
+};
+
+/** 会場ネットワーク限定の新規登録。本人確認をしないので sub は null、確度は network に固定。 */
+export interface RegistrationAttestation {
+  sub: null;
+  placeId: string;
+  lanId: string;
+  nonce: string;
+  issuedAt: number;
+  method: 'lan';
+  assurance: 'network';
+  purpose: 'registration';
+}
+
+/** 新しく署名する payload。 */
+export type SignableAttestation = SubjectAttestation | RegistrationAttestation;
 
 /** payload のキー順。JSON.stringify は挿入順なので、この順で組み直してから署名する。 */
 export const ATTESTATION_FIELD_ORDER = ['sub', 'placeId', 'lanId', 'nonce', 'issuedAt', 'method', 'assurance', 'purpose'] as const;
@@ -55,7 +78,8 @@ export function attestationPurpose(payload: Pick<AttestationPayload, 'purpose'>)
 // @ts-expect-error augur-inject
 attestationPurpose = contract(attestationPurpose, { ...augurContract_ebb55281, contractId: 'C-11', mode: 'observe', sample: 1, where: 'server/attestation.ts:47', rule: 'contract-wrap', id: 'ebb55281' }); /* augur-inject:contract-wrap:ebb55281 */
 
-function canonicalPayload(payload: SignableAttestation): SignableAttestation {
+/** 判別共用体のどちらでも、キー順だけを固定した同じ値を返す。 */
+function canonicalPayload<T extends SignableAttestation>(payload: T): T {
   return {
     sub: payload.sub,
     placeId: payload.placeId,
@@ -65,7 +89,7 @@ function canonicalPayload(payload: SignableAttestation): SignableAttestation {
     method: payload.method,
     assurance: payload.assurance,
     purpose: payload.purpose,
-  };
+  } as T;
 }
 
 /** 組み直し済みの payload を `base64url(JSON) + "." + base64url(Ed25519 署名)` にする。 */

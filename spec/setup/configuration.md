@@ -19,7 +19,7 @@ env-cli (Infisical) 設定は `env-cli.config.ts`。
 |---|---|---|---|
 | `OSTIARIUS_PORT` | listen port | `17590` | |
 | `OSTIARIUS_LAN_ID` | ゲートウェイ ID (attestation.lanId) | — | **必須** |
-| `OSTIARIUS_FACILITY_ID` | 紐づく施設 (attestation.placeId) | — | **必須** |
+| `OSTIARIUS_FACILITY_ID` | 紐づく施設 = Cernere の組織 UUID (attestation.placeId・顔の同意の facilityId・kiosk 登録の placeId)。UUID でない値は起動時の設定エラー ([venue-registration.md](../feature/venue-registration.md) §7) | — | **必須** |
 | `CERNERE_BASE_URL` | passkey export 取得元 (末尾 `/` 除去) | — | **必須** |
 | `CERNERE_PROJECT_CLIENT_ID` / `CERNERE_PROJECT_CLIENT_SECRET` | Cernere project client credential (**secret**)。Excubitor が起動ごとに注入する。service token はここから都度取り直す | — | **必須** (下記の代替可) |
 | `CERNERE_SERVICE_TOKEN` | 手発行の固定 service Bearer (**secret**)。**TTL 60 分**で失効するため一時確認用 | — | 任意 |

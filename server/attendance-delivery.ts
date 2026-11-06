@@ -1,11 +1,16 @@
 export type AttendanceDelivery =
   | { status: 'recorded'; attendanceId: string; matchedReservation: string | null }
   | { status: 'failed'; code: string };
+import { foreignAttestationPurpose } from './attestation-purpose-guard.ts';
+
 export type AttendanceSender = (attestation: string) => Promise<AttendanceDelivery>;
 
 /** Credentials stay on Os; browsers receive only the remote recording result. */
 export function attendanceSender(baseUrl: string, token: string, send: typeof fetch = fetch): AttendanceSender {
   return async attestation => {
+    // 出席へは attendance だけを送る。mfa / registration / location は Aedilis へ流さない
+    // (spec/feature/venue-registration.md §3)。
+    if (foreignAttestationPurpose(attestation, 'attendance') !== null) return { status: 'failed', code: 'ATTESTATION_PURPOSE_NOT_ATTENDANCE' };
     if (!baseUrl || !token) return { status: 'failed', code: 'AEDILIS_NOT_CONFIGURED' };
     try {
       const url = new URL('/api/checkin/gateway-verify', baseUrl);

@@ -86,7 +86,7 @@
     },
     {
       "id": "C-10",
-      "criterion": "C-10 signAttestation(payload, privateKey): 署名する payload を {sub, placeId, lanId, nonce, issuedAt, method, assurance, purpose} の固定順で直列化し、purpose を attendance | mfa に限る",
+      "criterion": "C-10 signAttestation(payload, privateKey): 署名する payload を {sub, placeId, lanId, nonce, issuedAt, method, assurance, purpose} の固定順で直列化し、purpose を attendance | mfa | registration に限る (registration は sub=null・method=lan・assurance=network)",
       "symbol": "signAttestation",
       "file": "server/attestation.ts",
       "module": "contracts/sign-attestation.contract.ts",
@@ -207,6 +207,51 @@
       "symbol": "resolveFacilityLocation",
       "file": "server/facility-location.ts",
       "module": "contracts/resolve-facility-location.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-24",
+      "criterion": "C-24 signVenueRegistrationAttestation(input, privateKey): 会場登録の attestation を {sub:null, placeId, lanId, nonce, issuedAt, method:\"lan\", assurance:\"network\", purpose:\"registration\"} の固定順で gateway 鍵により署名する",
+      "symbol": "signVenueRegistrationAttestation",
+      "file": "server/venue-registration/attestation.ts",
+      "module": "contracts/sign-venue-registration-attestation.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-25",
+      "criterion": "C-25 submitVenueRegistrationAttestation(options, attestation): Cernere の /api/auth/venue-registration/attestations へ送るのは purpose:\"registration\" の固定 8 フィールドだけで、応答は accepted か固定語彙の拒否コードへ写す",
+      "symbol": "submitVenueRegistrationAttestation",
+      "file": "server/venue-registration/cernere-submit.ts",
+      "module": "contracts/submit-venue-registration-attestation.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-26",
+      "criterion": "C-26 issueVenueRegistration(deps, nonce): 同じ nonce は保持期間内に 1 回だけ署名・送信し (再送は nonce_reused)、Cernere が受理したときだけ accepted を返す",
+      "symbol": "issueVenueRegistration",
+      "file": "server/venue-registration/issue.ts",
+      "module": "contracts/issue-venue-registration.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-27",
+      "criterion": "C-27 foreignAttestationPurpose(attestation, expected): 出席・MFA の送信経路で、読み取れる purpose が expected と異なる attestation (registration を含む) を検出して送らせない",
+      "symbol": "foreignAttestationPurpose",
+      "file": "server/attestation-purpose-guard.ts",
+      "module": "contracts/foreign-attestation-purpose.contract.ts",
+      "mode": "observe",
+      "sample": 1
+    },
+    {
+      "id": "C-28",
+      "criterion": "C-28 resolveFacilityId(value): OSTIARIUS_FACILITY_ID は Cernere の組織 UUID だけを受け、UUID でない値 (glab-main など) は起動時の設定エラーとして throw する",
+      "symbol": "resolveFacilityId",
+      "file": "server/facility-id.ts",
+      "module": "contracts/resolve-facility-id.contract.ts",
       "mode": "observe",
       "sample": 1
     }

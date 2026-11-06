@@ -5,7 +5,8 @@
 // - NONCE_REQUIRED: 状態を変える開始系で、Ostiarius 自身が配信する画面から呼ぶもの。
 //   サーバ発行の一回限り nonce を必須にする。WebAuthn の begin/finish は challenge 自体が
 //   サーバ発行の一回限り nonce なので対象外。現地確認 MFA の開始は Cernere 発行の nonce を
-//   一回限りで受ける (onsite-mfa/session-store.ts の nonce_reused)。
+//   一回限りで受ける (onsite-mfa/session-store.ts の nonce_reused)。会場登録の開始も同様
+//   (venue-registration/nonce-ledger.ts)。
 // - RATE_LIMITED: 開始・照合系 (総当たり・大量発行の対象)。顔フレームは対象外 (loopback の
 //   kiosk が毎秒数回送るため。そもそも SENSITIVE で LAN 平文からは届かない)。
 
@@ -36,6 +37,7 @@ const RATE_LIMITED_POST: readonly RegExp[] = [
   /^\/kiosk\/proximity\/[^/]+\/(?:begin|finish)$/,
   /^\/api\/lan\/nonce$/,
   /^\/api\/mfa\/onsite\/sessions$/,
+  /^\/api\/venue-registration\/sessions$/,
   /^\/(?:kiosk\/)?identity\/session$/,
   /^\/(?:kiosk\/)?identity\/passkey\/(?:begin|finish)$/,
   /^\/identity\/staff\/(?:begin|finish)$/,

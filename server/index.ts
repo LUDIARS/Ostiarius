@@ -66,6 +66,9 @@ import { OnsiteMfaSessionStore } from './onsite-mfa/session-store.ts';
 import { onsiteMfaSubmitter } from './onsite-mfa/cernere-submit.ts';
 import { makeOnsiteMfaRouter, ONSITE_MFA_API_PREFIX } from './routes/onsite-mfa.ts';
 import { makeOnsiteMfaKioskRouter } from './routes/onsite-mfa-kiosk.ts';
+import { makeVenueRegistrationRouter, VENUE_REGISTRATION_API_PREFIX } from './routes/venue-registration.ts';
+import { VenueRegistrationNonceLedger } from './venue-registration/nonce-ledger.ts';
+import { venueRegistrationSubmitter } from './venue-registration/cernere-submit.ts';
 import { createLocationStatementIssuer, locationStatementField } from './location-statement.ts';
 import { makeLocationRouter } from './routes/location.ts';
 
@@ -168,6 +171,7 @@ installLanHardening(app, {
     lanHostname: config.tls.enabled ? config.tls.hostname : config.lanHostname }),
   corsScopes: [
     { pathPrefix: ONSITE_MFA_API_PREFIX, origins: [config.cernereFrontendUrl], corsHeaders: 'router' },
+    { pathPrefix: VENUE_REGISTRATION_API_PREFIX, origins: [config.cernereFrontendUrl], corsHeaders: 'router' },
     ...(automaticAttendance ? [{ pathPrefix: '/checkin/automatic', origins: [automaticAttendance.origin], corsHeaders: 'self' as const }] : []),
   ],
   isLan,
@@ -275,6 +279,19 @@ app.route('/', makeOnsiteMfaKioskRouter({
     lanId: config.lanId,
     facilityId: config.facilityId,
     submit: onsiteMfaSubmitter({ cernereBaseUrl: config.cernereBaseUrl, serviceToken: cernereServiceToken }),
+  },
+}));
+// 会場ネットワーク限定の新規登録 (spec/feature/venue-registration.md)。本人確認はせず、
+// LAN から届いた nonce に purpose:"registration" で署名して Cernere へだけ送る。
+app.route('/', makeVenueRegistrationRouter({
+  isLan,
+  corsOrigin: config.cernereFrontendUrl,
+  issue: {
+    nonces: new VenueRegistrationNonceLedger(),
+    privateKey: keyPair.privateKey,
+    lanId: config.lanId,
+    facilityId: config.facilityId,
+    submit: venueRegistrationSubmitter({ cernereBaseUrl: config.cernereBaseUrl, serviceToken: cernereServiceToken }),
   },
 }));
 if (config.aedilisBaseUrl && config.aedilisGatewayToken) setInterval(() => { void retryOutbox(db, config.aedilisBaseUrl, config.aedilisGatewayToken); }, 30_000).unref?.();
